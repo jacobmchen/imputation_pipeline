@@ -4,6 +4,12 @@
 # library for learning continuous densities
 library(haldensify)
 
+# library for imputing missing values
+library(mice)
+
+# library for random forests
+library(ranger)
+
 # define an expit function
 expit <- function(x) {
   return(exp(x)/(1+exp(x)))
@@ -19,8 +25,10 @@ setClass("ImputationPipeline",
                     mediation_data="data.frame", # the smaller dataset with biomarker data
                     variable_dictionary="list", # a dictionary mapping canonical variable names to the
                                                 # variable names in the dataframes
-                    mediation_models="ANY", # a list of mediator densities learned from the haldensify package
-                    treatment_models="ANY" # a list of treatment densities learned from the haldensify package
+                    combined_imputed_data="ANY", # a placeholder for the combined imputed data
+                    mediation_models="ANY", # a list of mediator densities/estimations learned from the haldensify package
+                    treatment_models="ANY", # a list of treatment densities/estimations learned from the haldensify package
+                    treatment_marginal_models="ANY" # a list of marginal treatment densities/estimations
                     ))
 
 # create a constructor
@@ -28,8 +36,10 @@ NewImputationPipeline <- function(primary_data, mediation_data, variable_diction
   new("ImputationPipeline", primary_data=primary_data, 
                 mediation_data=mediation_data,
                 variable_dictionary=variable_dictionary,
+                combined_imputed_data=NULL,
                 mediation_models=NULL,
-                treatment_models=NULL)
+                treatment_models=NULL,
+                treatment_marginal_models=NULL)
 }
 
 # define the show method for the ImputationPipeline class to define how it should
@@ -47,6 +57,15 @@ setMethod("show", "ImputationPipeline", function(object) {
 
   print("length of mediation_models:")
   print(length(object@mediation_models))
+
+  print("length of treatment_models:")
+  print(length(object@treatment_models))
+
+  print("length of treatment_marginal_models:")
+  print(length(object@treatment_marginal_models))
+
+  print("combined_imputed_data:")
+  print(head(object@combined_imputed_data))
 })
 
 # define a helper method for learning the density of a variable given other variables;
@@ -72,11 +91,14 @@ learn_density <- function(read_from_rds=FALSE, exposure, adjustment_set, analysi
   
   # define the name of save file
   filename_model <- paste0("model_", exposure, "_", filename_addon, ".RDS")
+  filename_density <- paste0("density_", exposure, "_", filename_addon, ".RDS")
     
   if (read_from_rds) {
     model <- readRDS(filename_model)
+
+    density <- readRDS(filename_density)
   
-    return(model)
+    return(list(model, density))
   } else {
     # use parameters specified in the vignette, except modify length of lambda sequence and max_degree
     model <- haldensify(A=A,  W=L,
@@ -90,7 +112,10 @@ learn_density <- function(read_from_rds=FALSE, exposure, adjustment_set, analysi
     # save the learned model as an RDS file
     saveRDS(model, filename_model)
 
-    return(model)
+    density <- predict(model, new_A=A, new_W=L)
+    saveRDS(density, filename_density)
+
+    return(list(model, density))
   }
 }
 
@@ -99,10 +124,13 @@ learn_density <- function(read_from_rds=FALSE, exposure, adjustment_set, analysi
 setGeneric("learnMediationDensities", function(object, read_from_rds, filename)
                             standardGeneric("learnMediationDensities"))
 
-# define a method for learning the mediation models
+# define a method for learning the mediation densities
 setMethod("learnMediationDensities", "ImputationPipeline", function(object, read_from_rds, filename) {
   # get the full vector of mediation variables
   mediation_variables <- object@variable_dictionary[["M"]]
+
+  # get the full vector of treatment variables
+  treatment_variables <- object@variable_dictionary[["A"]]
 
   # get the full vector of covariate variables
   covariate_variables <- object@variable_dictionary[["X"]]
@@ -125,7 +153,7 @@ setMethod("learnMediationDensities", "ImputationPipeline", function(object, read
     if (index == med_length) adjustment_M <- c()
 
     # define the covariate set
-    adjustment_set <- c(covariate_variables, adjustment_M)
+    adjustment_set <- c(covariate_variables, treatment_variables, adjustment_M)
 
     # learn the density from the mediation data
     cur_model <- learn_density(read_from_rds, cur_M, adjustment_set, object@mediation_data, filename)
@@ -141,7 +169,136 @@ setMethod("learnMediationDensities", "ImputationPipeline", function(object, read
   return(object)
 })
 
+# set the generic for learnTreatmentDensities
+setGeneric("learnTreatmentDensities", function(object, read_from_rds, filename)
+                                          standardGeneric("learnTreatmentDensities"))
+
+# define a method for learning the treatment densities
+setMethod("learnTreatmentDensities", "ImputationPipeline", function(object, read_from_rds, filename) {
+  # get the full vector of treatment variables
+  treatment_variables <- object@variable_dictionary[["A"]]
+
+  # get the full vector of covariate variables
+  covariate_variables <- object@variable_dictionary[["X"]]
+
+  # get the number of mediation variables
+  treatment_length <- length(treatment_variables)
+
+  # declare an empty list to save the learned models in
+  models <- list()
+
+  # learn a density for each of the mediation variables
+  for (index in 1:treatment_length) {
+    # get current M we want to learn the density for
+    cur_A <- treatment_variables[index]
+
+    # chain rule the rest of the densities
+    adjustment_A <- treatment_variables[(index+1):treatment_length]
+
+    # if this is the final density to learn, there is nothing to chain rule
+    if (index == treatment_length) adjustment_A <- c()
+
+    # define the covariate set
+    adjustment_set <- c(covariate_variables, adjustment_A)
+
+    # learn the density from the mediation data
+    cur_model <- learn_density(read_from_rds, cur_A, adjustment_set, object@combined_imputed_data, filename)
+
+    # save the learned model to the list
+    models[[index]] <- cur_model
+  }
+
+  # save the mediation models to the slot
+  object@treatment_models <- models
+
+  # return the modified pipeline object
+  return(object)
+})
+
+# set the generic for learnTreatmentDensities
+setGeneric("learnMarginalTreatmentDensities", function(object, read_from_rds, filename)
+                                          standardGeneric("learnMarginalTreatmentDensities"))
+
+# define a method for learning the treatment densities
+setMethod("learnMarginalTreatmentDensities", "ImputationPipeline", function(object, read_from_rds, filename) {
+  # get the full vector of treatment variables
+  treatment_variables <- object@variable_dictionary[["A"]]
+
+  # get the number of mediation variables
+  treatment_length <- length(treatment_variables)
+
+  # add a column of 1's so that the final treatment does not
+  # have an empty adjustment set
+  object@combined_imputed_data$const <- 1
+
+  # declare an empty list to save the learned models in
+  models <- list()
+
+  # learn a density for each of the mediation variables
+  for (index in 1:treatment_length) {
+    # get current M we want to learn the density for
+    cur_A <- treatment_variables[index]
+
+    # chain rule the rest of the densities
+    adjustment_A <- treatment_variables[(index+1):treatment_length]
+
+    # if this is the final density to learn, there is nothing to chain rule
+    if (index == treatment_length) adjustment_A <- c("const")
+
+    # define the covariate set
+    adjustment_set <- c(adjustment_A)
+
+    # learn the density from the mediation data
+    cur_model <- learn_density(read_from_rds, cur_A, adjustment_set, object@combined_imputed_data, filename)
+
+    # save the learned model to the list
+    models[[index]] <- cur_model
+  }
+
+  # save the mediation models to the slot
+  object@treatment_marginal_models <- models
+
+  # return the modified pipeline object
+  return(object)
+})
+
+# set the generic for imputeMediators
+setGeneric("imputeMediators", function(object, seed) standardGeneric("imputeMediators"))
+
+# define a method for imputing the mediators in the primary data from the learned densities in 
+# the mediators data
+setMethod("imputeMediators", "ImputationPipeline", function(object, seed) {
+  # take the primary dataset and create columns of NA for each of the mediators
+  primary_data <- object@primary_data
+
+  # get the list of mediator variables
+  mediation_variables <- object@variable_dictionary[["M"]]
+
+  # create a column of missing values for each mediator
+  for (index in 1:length(mediation_variables)) {
+    primary_data[[mediation_variables[index]]] <- NA
+  }
+
+  # combine the primary and mediation datasets, keeping the mediators in the
+  # primary dataset as NAs
+  combined_data <- base::rbind(primary_data, object@mediation_data)
+
+  # impute missing values using a random forest model one time
+  imputed_data <- mice(combined_data, method="rf", m=1, seed=seed)
+
+  # get the completed dataset from the first (and only) imputation
+  completed_data <- complete(imputed_data, 1)
+
+  # save the new dataframe to the object
+  object@combined_imputed_data <- completed_data
+
+  return(object)
+})
+
 # Simulation study starts here
+# set the seed
+set.seed(0)
+
 # define the size of the primary dataset
 primary_n <- 1000
 # define the size of the secondary dataset
@@ -196,6 +353,12 @@ pipeline <- NewImputationPipeline(primary_data, mediation_data, variable_diction
 pipeline <- learnMediationDensities(pipeline, TRUE, "test")
 
 # impute M values for the primary dataset
+pipeline <- imputeMediators(pipeline, 0)
 
+# learn the treatment densities and update the object
+pipeline <- learnTreatmentDensities(pipeline, TRUE, "test")
+
+# learn the marginal treatment densities and update the object
+pipeline <- learnMarginalTreatmentDensities(pipeline, FALSE, "test")
 
 show(pipeline)
