@@ -456,6 +456,7 @@ setMethod("estimateMediationTerm", "ImputationPipeline", function(object, a_prim
 
   # train a linear model for the pseudo-outcome given the data and weights
   model <- glm(formula, family=gaussian, data=data, weights=MSM_weights)
+  print(summary(model))
 
   # make a copy of the combined_imputed_data
   data_copy <- data.frame(object@combined_imputed_data)
@@ -475,7 +476,53 @@ setMethod("estimateMediationTerm", "ImputationPipeline", function(object, a_prim
   # use the model to make predictions using the copied dataset
   predictions <- predict(model, newdata=data_copy, type="response")
 
+  # the estimate is the mean of the predictions
   object@mediation_term <- mean(predictions)
+
+  return(object)
+})
+
+# set the generic for estimating counterfactual terms
+setGeneric("estimateCounterfactual", function(object, a_vals, prime) standardGeneric("estimateCounterfactual"))
+
+# define method for estimating counterfactual terms
+setMethod("estimateCounterfactual", "ImputationPipeline", function(object, a_vals, prime) {
+  # retrieve the combined and imputed dataset
+  data <- object@combined_imputed_data
+
+  # save the weights as a column in the dataset
+  data$MSM_weights <- object@MSM_weights
+
+  # create a formula for predicting the pseudo-outcome
+  formula <- create_formula(object@variable_dictionary[["Y"]][1], object@variable_dictionary[["A"]], two_way=TRUE)
+
+  # train a linear logistic model for the pseudo-outcome given the data and weights
+  # the regular outcome is binary
+  model <- glm(formula, family=binomial, data=data, weights=MSM_weights)
+
+  # make a copy of the combined_imputed_data
+  data_copy <- data.frame(object@combined_imputed_data)
+
+  # get the size of the dataset
+  row_n <- nrow(data_copy)
+
+  # get the treatment variables
+  treatment_variables <- object@variable_dictionary[["A"]]
+  treatment_length <- length(treatment_variables)
+
+  # replace each of the A's with the a_vals
+  for (i in 1:length(treatment_variables)) {
+    data_copy[[treatment_variables[i]]] <- rep(a_vals[i], row_n)
+  }
+
+  # use the model to make predictions using the copied dataset
+  predictions <- predict(model, newdata=data_copy, type="response")
+
+  # the estimate is the mean of the predictions
+  # if prime is true then save the estimate to the prime slot,
+  # otherwise save the estimate to the non-prime slot
+  if (prime) object@counterfactual_a_prime <- mean(predictions)
+  else object@counterfactual_a <- mean(predictions)
 
   return(object)
 })
@@ -554,7 +601,33 @@ pipeline <- computeMSMWeights(pipeline)
 
 # estimate the mediation term
 pipeline <- estimateMediationTerm(pipeline, c(1))
-
 print(pipeline@mediation_term)
+
+# estimate the counterfactual terms
+pipeline <- estimateCounterfactual(pipeline, c(1), TRUE)
+print(pipeline@counterfactual_a_prime)
+
+pipeline <- estimateCounterfactual(pipeline, c(-1), FALSE)
+print(pipeline@counterfactual_a)
+
+#####
+# compute ground-truth values
+X_primary <- rnorm(primary_n, 0, sd)
+A_primary <- X_primary + rnorm(primary_n, 0, sd)
+M_primary <- 1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
+Y_primary <- rbinom(primary_n, 1, expit(1 + X_primary + M_primary))
+print(paste("Y(1)", mean(Y_primary)))
+
+X_primary <- rnorm(primary_n, 0, sd)
+A_primary <- X_primary + rnorm(primary_n, 0, sd)
+M_primary <- -1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
+Y_primary <- rbinom(primary_n, 1, expit(-1 + X_primary + M_primary))
+print(paste("Y(-1)", mean(Y_primary)))
+
+X_primary <- rnorm(primary_n, 0, sd)
+A_primary <- X_primary + rnorm(primary_n, 0, sd)
+M_primary <- -1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
+Y_primary <- rbinom(primary_n, 1, expit(1 + X_primary + M_primary))
+print(paste("Y(1, M(-1))", mean(Y_primary)))
 
 # show(pipeline)
