@@ -10,6 +10,10 @@ library(mice)
 # library for random forests
 library(ranger)
 
+# library for BART
+# library(BART)
+library(dbarts)
+
 # define an expit function
 expit <- function(x) {
   return(exp(x)/(1+exp(x)))
@@ -145,6 +149,46 @@ create_formula <- function(outcome, features, two_way=FALSE) {
     }
     return(paste0(outcome, "~", paste(features, collapse="+")))
   }
+}
+
+# define a helper function for counterfactuals using BART
+# <FUNCTION: compute_po_Y>
+# compute E[Y(A=a)] by treating Y as a numeric variable
+# <Input>
+# data: the dataset in a data.frame format
+# Y: string containing the name of the output
+# A: string containing the name of the treatment
+# X: vector of strings containing the names of the covariates
+# data_a: the dataset with values of the treatment set at the 
+# counterfactual value
+# q: the quantile for which we want to draw the confidence interval
+# ndraws: number of MCMC draws for the bart operator
+# <Output>
+# E[Y(A=a)]
+compute_po_Y <- function(data, Y, A, X, data_a, q = 0.025, ndraws) {
+  # get the training features data
+  data_copy <- data.frame(data)
+  data_copy[[Y]] <- NULL
+  x.train <- as.matrix(data_copy[, c(A, X)])
+  
+  # get the outcome data
+  y.train <- as.matrix(data[[Y]])
+  
+  # get the testing features data and replacing all values of A with a
+  data_copy <- data.frame(data_a)
+  data_copy[[Y]] <- NULL
+  x.test <- as.matrix(data_copy[, c(A, X)])
+  
+  bart_Y <- bart(x.train=x.train, y.train=y.train, x.test=x.test, ndpost=ndraw, verbose=FALSE)
+  
+  # calculate the expected value of the potential outcome
+  expected_val <- bart_Y$yhat.test.mean
+  print("***")
+  print(head(bart_Y$yhat.test))
+  quants <- as.numeric(quantile(expected_val, c(q, 1-q)))
+  bart.expected_val <- mean(expected_val)
+  
+  return(c(bart.expected_val, quants[1], quants[2]))
 }
 
 # set the generic so that the method learnMediationDensities exists in the method table for
@@ -443,6 +487,9 @@ setMethod("computeMSMWeights", "ImputationPipeline", function(object) {
 # set the generic for estimating the mediation term
 setGeneric("estimateMediationTerm", function(object, a_prime_vals) standardGeneric("estimateMediationTerm"))
 
+# function header of computing a potential outcome from BART
+# compute_po_Y <- function(data, Y, A, X, data_a, q = 0.025, ndraws)
+
 # define method for estimating the mediation term
 setMethod("estimateMediationTerm", "ImputationPipeline", function(object, a_prime_vals) {
   # retrieve the combined and imputed dataset
@@ -456,7 +503,6 @@ setMethod("estimateMediationTerm", "ImputationPipeline", function(object, a_prim
 
   # train a linear model for the pseudo-outcome given the data and weights
   model <- glm(formula, family=gaussian, data=data, weights=MSM_weights)
-  print(summary(model))
 
   # make a copy of the combined_imputed_data
   data_copy <- data.frame(object@combined_imputed_data)
@@ -472,6 +518,17 @@ setMethod("estimateMediationTerm", "ImputationPipeline", function(object, a_prim
   for (i in 1:length(treatment_variables)) {
     data_copy[[treatment_variables[i]]] <- rep(a_prime_vals[i], row_n)
   }
+
+  # bart_estimates <- compute_po_Y(object@combined_imputed_data,
+  #                                "Y_p",
+  #                                object@variable_dictionary[["A"]],
+  #                                object@variable_dictionary[["X"]],
+  #                                data_copy,
+  #                                q=0.025,
+  #                                ndraws=500)
+
+  # print("bart")
+  # print(bart_estimates)
 
   # use the model to make predictions using the copied dataset
   predictions <- predict(model, newdata=data_copy, type="response")
@@ -518,6 +575,17 @@ setMethod("estimateCounterfactual", "ImputationPipeline", function(object, a_val
   # use the model to make predictions using the copied dataset
   predictions <- predict(model, newdata=data_copy, type="response")
 
+  # bart_estimates <- compute_po_Y(object@combined_imputed_data,
+  #                                object@variable_dictionary[["Y"]][1],
+  #                                object@variable_dictionary[["A"]],
+  #                                object@variable_dictionary[["X"]],
+  #                                data_copy,
+  #                                q=0.025,
+  #                                ndraws=1000)
+
+  # print("bart")
+  # print(bart_estimates)
+
   # the estimate is the mean of the predictions
   # if prime is true then save the estimate to the prime slot,
   # otherwise save the estimate to the non-prime slot
@@ -534,7 +602,7 @@ set.seed(0)
 # define the size of the primary dataset
 primary_n <- 1000
 # define the size of the secondary dataset
-secondary_n <- 150
+secondary_n <- 1000
 
 # define the standard deviation
 sd = 1
