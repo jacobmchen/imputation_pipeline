@@ -25,10 +25,15 @@ setClass("ImputationPipeline",
                     mediation_data="data.frame", # the smaller dataset with biomarker data
                     variable_dictionary="list", # a dictionary mapping canonical variable names to the
                                                 # variable names in the dataframes
-                    combined_imputed_data="ANY", # a placeholder for the combined imputed data
+                    combined_imputed_data="data.frame", # a placeholder for the combined imputed data
                     mediation_models="ANY", # a list of mediator densities/estimations learned from the haldensify package
                     treatment_models="ANY", # a list of treatment densities/estimations learned from the haldensify package
-                    treatment_marginal_models="ANY" # a list of marginal treatment densities/estimations
+                    treatment_marginal_models="ANY", # a list of marginal treatment densities/estimations
+                    MSM_weights="ANY", # a vector storing the calculation of MSM weights
+                    Y_p="ANY", # a vector storing the pseudo-outcome
+                    mediation_term="numeric", # a number to store the estimate of the mediation term
+                    counterfactual_a="numeric", # a number to store the estimate of intervening on a
+                    counterfactual_a_prime="numeric" # a number to store the estimate of intervening on a'
                     ))
 
 # create a constructor
@@ -36,10 +41,15 @@ NewImputationPipeline <- function(primary_data, mediation_data, variable_diction
   new("ImputationPipeline", primary_data=primary_data, 
                 mediation_data=mediation_data,
                 variable_dictionary=variable_dictionary,
-                combined_imputed_data=NULL,
+                combined_imputed_data=data.frame(),
                 mediation_models=NULL,
                 treatment_models=NULL,
-                treatment_marginal_models=NULL)
+                treatment_marginal_models=NULL,
+                MSM_weights=NULL,
+                Y_p=NULL,
+                mediation_term=0,
+                counterfactual_a=0,
+                counterfactual_a_prime=0)
 }
 
 # define the show method for the ImputationPipeline class to define how it should
@@ -66,6 +76,12 @@ setMethod("show", "ImputationPipeline", function(object) {
 
   print("combined_imputed_data:")
   print(head(object@combined_imputed_data))
+
+  print("weights:")
+  print(head(object@MSM_weights))
+
+  print("pseudo-outcome:")
+  print(head(object@Y_p))
 })
 
 # define a helper method for learning the density of a variable given other variables;
@@ -116,6 +132,18 @@ learn_density <- function(read_from_rds=FALSE, exposure, adjustment_set, analysi
     saveRDS(density, filename_density)
 
     return(list(model, density))
+  }
+}
+
+# helper function for creating a formula
+create_formula <- function(outcome, features, two_way=FALSE) {
+  if (length(features) == 0) {
+    return(paste0(outcome, "~1"))
+  } else {
+    if (two_way) {
+      return(paste0(outcome, "~(", paste(features, collapse="+"), ")^2"))
+    }
+    return(paste0(outcome, "~", paste(features, collapse="+")))
   }
 }
 
@@ -221,6 +249,10 @@ setGeneric("learnMarginalTreatmentDensities", function(object, read_from_rds, fi
 
 # define a method for learning the treatment densities
 setMethod("learnMarginalTreatmentDensities", "ImputationPipeline", function(object, read_from_rds, filename) {
+  # add the string marginal so that the treatment density and marginal treatment density
+  # file names do not conflict
+  filename <- paste0("marginal_", filename)
+
   # get the full vector of treatment variables
   treatment_variables <- object@variable_dictionary[["A"]]
 
@@ -290,7 +322,160 @@ setMethod("imputeMediators", "ImputationPipeline", function(object, seed) {
   completed_data <- complete(imputed_data, 1)
 
   # save the new dataframe to the object
-  object@combined_imputed_data <- completed_data
+  object@combined_imputed_data <- data.frame(completed_data)
+
+  return(object)
+})
+
+# set the generic for estimating the mixed mediation term
+setGeneric("computePseudoOutcome", function(object, a_prime_vals, a_vals) standardGeneric("computePseudoOutcome"))
+
+# define a method for estimating the mediation term
+setMethod("computePseudoOutcome", "ImputationPipeline", function(object, a_prime_vals, a_vals) {
+  # compute the pseudo-outcome
+  Y_p <- object@combined_imputed_data[[object@variable_dictionary[["Y"]]]]
+
+  # get the covariate variables
+  covariate_variables <- object@variable_dictionary[["X"]]
+
+  # get the treatment variables
+  treatment_variables <- object@variable_dictionary[["A"]]
+  treatment_length <- length(treatment_variables)
+
+  # get the mediation variables and its length
+  mediation_variables <- object@variable_dictionary[["M"]]
+  med_length <- length(mediation_variables)
+
+  # get the models for the mediation analysis
+  mediation_models <- object@mediation_models
+
+  # get the number of rows in the dataset we are working with
+  row_n <- nrow(object@combined_imputed_data)
+
+  for (i in 1:med_length) {
+    # get the current model, which is stored in the first position of the tuple
+    cur_model <- mediation_models[[i]][[1]]
+
+    # get the adjustment set for this M
+    adjustment_M <- mediation_variables[(i+1):med_length]
+    # if this is the final density to learn, there is nothing to chain rule
+    if (i == med_length) adjustment_M <- c()
+    # define the covariate set
+    adjustment_set <- c(covariate_variables, treatment_variables, adjustment_M)
+  
+    # make a copy of the dataset
+    data_copy_prime <- data.frame(object@combined_imputed_data)
+    # iterate through all treatment variables and change each treatment
+    # value to its prime value
+    for (j in 1:length(treatment_variables)) {
+      data_copy_prime[[treatment_variables[j]]] <- rep(a_prime_vals[j], row_n)
+    }
+
+    # save the outcome and covariate variables to make predictions for
+    A <- data_copy_prime[[mediation_variables[i]]]
+    L <- data_copy_prime[, adjustment_set ]
+    
+    # the prime values are in the denominator
+    denominator <- predict(cur_model, new_A=A, new_W=L)
+    
+    # make a copy of the dataset
+    data_copy <- data.frame(object@combined_imputed_data)
+    # iterate through all treatment variables and change each treatment
+    # value to its a value
+    for (j in 1:length(treatment_variables)) {
+      data_copy[[treatment_variables[j]]] <- rep(a_vals[j], row_n)
+    }
+    
+    # save the outcome and covariate variables to make predictions for
+    A <- data_copy[[mediation_variables[i]]]
+    L <- data_copy[, adjustment_set ]
+    
+    # the non-prime values are in the numerator
+    numerator <- predict(cur_model, new_A=A, new_W=L)
+    
+    # update the value of the pseudo-outcome
+    Y_p <- Y_p * numerator / denominator
+  }
+
+  # save the pseuo-outcome into the slot
+  object@Y_p <- Y_p
+
+  # save the pseudo-outcome as a column in the final dataframe
+  object@combined_imputed_data[["Y_p"]] <- Y_p
+
+  # return the object
+  return(object)
+})
+
+# set the generic for computing the MSM weights
+setGeneric("computeMSMWeights", function(object) standardGeneric("computeMSMWeights"))
+
+setMethod("computeMSMWeights", "ImputationPipeline", function(object) {
+  # get the size of the dataset
+  row_n <- nrow(object@combined_imputed_data)
+
+  # get the treatment variables
+  treatment_variables <- object@variable_dictionary[["A"]]
+  treatment_length <- length(treatment_variables)
+
+  # compute MSM weights
+  weights <- rep(1, row_n)
+  # iterate through the treatment models
+  for (i in 1:treatment_length) {
+    # get the estimated densities for the numerator, which are in index 2 of the tuple
+    numerator <- object@treatment_marginal_models[[i]][[2]]
+    # get the estimated densities for the denominator, which are in index 2 of the tuple
+    denominator <- object@treatment_models[[i]][[2]]
+    # update the weights
+    weights <- weights * numerator / denominator
+  }
+
+  # standardize weights
+  weights_stand <- weights / sum(weights) * row_n
+
+  # store the weights into the slot
+  object@MSM_weights <- weights_stand
+
+  # return the object
+  return(object)
+})
+
+# set the generic for estimating the mediation term
+setGeneric("estimateMediationTerm", function(object, a_prime_vals) standardGeneric("estimateMediationTerm"))
+
+# define method for estimating the mediation term
+setMethod("estimateMediationTerm", "ImputationPipeline", function(object, a_prime_vals) {
+  # retrieve the combined and imputed dataset
+  data <- object@combined_imputed_data
+
+  # save the weights as a column in the dataset
+  data$MSM_weights <- object@MSM_weights
+
+  # create a formula for predicting the pseudo-outcome
+  formula <- create_formula("Y_p", object@variable_dictionary[["A"]], two_way=TRUE)
+
+  # train a linear model for the pseudo-outcome given the data and weights
+  model <- glm(formula, family=gaussian, data=data, weights=MSM_weights)
+
+  # make a copy of the combined_imputed_data
+  data_copy <- data.frame(object@combined_imputed_data)
+
+  # get the size of the dataset
+  row_n <- nrow(data_copy)
+
+  # get the treatment variables
+  treatment_variables <- object@variable_dictionary[["A"]]
+  treatment_length <- length(treatment_variables)
+
+  # replace each of the A's with the a_prime_value
+  for (i in 1:length(treatment_variables)) {
+    data_copy[[treatment_variables[i]]] <- rep(a_prime_vals[i], row_n)
+  }
+
+  # use the model to make predictions using the copied dataset
+  predictions <- predict(model, newdata=data_copy, type="response")
+
+  object@mediation_term <- mean(predictions)
 
   return(object)
 })
@@ -308,8 +493,8 @@ secondary_n <- 150
 sd = 1
 
 # generate variables for the primary dataset
-X_primary <- rnorm(primary_n, 0, 1)
-A_primary <- X_primary + rnorm(primary_n, 0, 0.1*sd)
+X_primary <- rnorm(primary_n, 0, sd)
+A_primary <- X_primary + rnorm(primary_n, 0, sd)
 M_primary <- A_primary + X_primary + rnorm(primary_n, 0, 0.1*sd)
 Y_primary <- rbinom(primary_n, 1, expit(A_primary + X_primary + M_primary))
 
@@ -322,9 +507,9 @@ primary_data <- data.frame(
 
 # generate variables for the secondary dataset; it is the same DGP as
 # above
-X_secondary <- rnorm(secondary_n, 0, 1)
-A_secondary <- X_secondary + rnorm(secondary_n, 0, 0.1*sd)
-M_secondary <- A_secondary + X_secondary + rnorm(secondary_n, 0, 0.1*sd)
+X_secondary <- rnorm(secondary_n, 0, sd)
+A_secondary <- X_secondary + rnorm(secondary_n, 0, sd)
+M_secondary <- A_secondary + X_secondary + rnorm(secondary_n, 0, sd)
 Y_secondary <- rbinom(secondary_n, 1, expit(A_secondary + X_secondary + M_secondary))
 
 # save the variables with the mediation data into the secondary
@@ -359,6 +544,17 @@ pipeline <- imputeMediators(pipeline, 0)
 pipeline <- learnTreatmentDensities(pipeline, TRUE, "test")
 
 # learn the marginal treatment densities and update the object
-pipeline <- learnMarginalTreatmentDensities(pipeline, FALSE, "test")
+pipeline <- learnMarginalTreatmentDensities(pipeline, TRUE, "test")
 
-show(pipeline)
+# estimate the mediation term
+pipeline <- computePseudoOutcome(pipeline, c(1), c(-1))
+
+# compute the MSM weights
+pipeline <- computeMSMWeights(pipeline)
+
+# estimate the mediation term
+pipeline <- estimateMediationTerm(pipeline, c(1))
+
+print(pipeline@mediation_term)
+
+# show(pipeline)
