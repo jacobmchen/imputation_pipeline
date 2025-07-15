@@ -158,18 +158,18 @@ create_formula <- function(outcome, features, two_way=FALSE) {
 # data: the dataset in a data.frame format
 # Y: string containing the name of the output
 # A: string containing the name of the treatment
-# X: vector of strings containing the names of the covariates
+# weights: vector of MSM weights to adjust for confounding
 # data_a: the dataset with values of the treatment set at the 
 # counterfactual value
 # q: the quantile for which we want to draw the confidence interval
 # ndraws: number of MCMC draws for the bart operator
 # <Output>
 # E[Y(A=a)]
-compute_po_Y <- function(data, Y, A, X, data_a, q = 0.025, ndraws) {
+compute_po_Y <- function(data, Y, A, weights, data_a, q = 0.025, ndraws) {
   # get the training features data
   data_copy <- data.frame(data)
   data_copy[[Y]] <- NULL
-  x.train <- as.matrix(data_copy[, c(A, X)])
+  x.train <- as.matrix(data_copy[, A])
   
   # get the outcome data
   y.train <- as.matrix(data[[Y]])
@@ -177,18 +177,54 @@ compute_po_Y <- function(data, Y, A, X, data_a, q = 0.025, ndraws) {
   # get the testing features data and replacing all values of A with a
   data_copy <- data.frame(data_a)
   data_copy[[Y]] <- NULL
-  x.test <- as.matrix(data_copy[, c(A, X)])
+  x.test <- as.matrix(data_copy[, A])
   
-  bart_Y <- bart(x.train=x.train, y.train=y.train, x.test=x.test, ndpost=ndraw, verbose=FALSE)
+  bart_Y <- bart(x.train=x.train, y.train=y.train, x.test=x.test, ndpost=ndraws, 
+                  weights=weights, verbose=FALSE)
   
   # calculate the expected value of the potential outcome
   expected_val <- bart_Y$yhat.test.mean
-  print("***")
-  print(head(bart_Y$yhat.test))
   quants <- as.numeric(quantile(expected_val, c(q, 1-q)))
   bart.expected_val <- mean(expected_val)
   
   return(c(bart.expected_val, quants[1], quants[2]))
+}
+
+# define a helper function for counterfactuals using BART
+# <FUNCTION: compute_po_Y_binary>
+# compute E[Y(A=a)] by treating Y as a binary variable
+# <Input>
+# data: the dataset in a data.frame format
+# Y: string containing the name of the output
+# A: string containing the name of the treatment
+# weights: vector of MSM weights to adjust for confounding
+# data_a: the dataset with values of the treatment set at the 
+# counterfactual value
+# q: the quantile for which we want to draw the confidence interval
+# ndraws: number of MCMC draws for the bart operator
+# <Output>
+# E[Y(A=a)]
+compute_po_Y_binary <- function(data, Y, A, weights, data_a, q = 0.025, ndraws) {
+  # get the training features data
+  data_copy <- data.frame(data)
+  data_copy[[Y]] <- NULL
+  x.train <- as.matrix(data_copy[, A])
+  
+  # get the outcome data
+  y.train <- as.matrix(data[[Y]])
+  
+  # get the testing features data and replacing all values of A with a
+  data_copy <- data.frame(data_a)
+  data_copy[[Y]] <- NULL
+  x.test <- as.matrix(data_copy[, A])
+  
+  bart_Y <- bart(x.train=x.train, y.train=y.train, x.test=x.test, ndpost=ndraws, 
+                  weights=weights, verbose=FALSE)
+
+  # compute the estimate for the probability of success
+  estimate <- mean(pnorm(bart_Y$yhat.test[,1]))
+  
+  return(estimate)
 }
 
 # set the generic so that the method learnMediationDensities exists in the method table for
@@ -492,18 +528,6 @@ setGeneric("estimateMediationTerm", function(object, a_prime_vals) standardGener
 
 # define method for estimating the mediation term
 setMethod("estimateMediationTerm", "ImputationPipeline", function(object, a_prime_vals) {
-  # retrieve the combined and imputed dataset
-  data <- object@combined_imputed_data
-
-  # save the weights as a column in the dataset
-  data$MSM_weights <- object@MSM_weights
-
-  # create a formula for predicting the pseudo-outcome
-  formula <- create_formula("Y_p", object@variable_dictionary[["A"]], two_way=TRUE)
-
-  # train a linear model for the pseudo-outcome given the data and weights
-  model <- glm(formula, family=gaussian, data=data, weights=MSM_weights)
-
   # make a copy of the combined_imputed_data
   data_copy <- data.frame(object@combined_imputed_data)
 
@@ -519,22 +543,15 @@ setMethod("estimateMediationTerm", "ImputationPipeline", function(object, a_prim
     data_copy[[treatment_variables[i]]] <- rep(a_prime_vals[i], row_n)
   }
 
-  # bart_estimates <- compute_po_Y(object@combined_imputed_data,
-  #                                "Y_p",
-  #                                object@variable_dictionary[["A"]],
-  #                                object@variable_dictionary[["X"]],
-  #                                data_copy,
-  #                                q=0.025,
-  #                                ndraws=500)
+  bart_estimates <- compute_po_Y(object@combined_imputed_data,
+                                 "Y_p",
+                                 object@variable_dictionary[["A"]],
+                                 object@MSM_weights,
+                                 data_copy,
+                                 q=0.025,
+                                 ndraws=1000)
 
-  # print("bart")
-  # print(bart_estimates)
-
-  # use the model to make predictions using the copied dataset
-  predictions <- predict(model, newdata=data_copy, type="response")
-
-  # the estimate is the mean of the predictions
-  object@mediation_term <- mean(predictions)
+  object@mediation_term <- bart_estimates[1]
 
   return(object)
 })
@@ -544,19 +561,6 @@ setGeneric("estimateCounterfactual", function(object, a_vals, prime) standardGen
 
 # define method for estimating counterfactual terms
 setMethod("estimateCounterfactual", "ImputationPipeline", function(object, a_vals, prime) {
-  # retrieve the combined and imputed dataset
-  data <- object@combined_imputed_data
-
-  # save the weights as a column in the dataset
-  data$MSM_weights <- object@MSM_weights
-
-  # create a formula for predicting the pseudo-outcome
-  formula <- create_formula(object@variable_dictionary[["Y"]][1], object@variable_dictionary[["A"]], two_way=TRUE)
-
-  # train a linear logistic model for the pseudo-outcome given the data and weights
-  # the regular outcome is binary
-  model <- glm(formula, family=binomial, data=data, weights=MSM_weights)
-
   # make a copy of the combined_imputed_data
   data_copy <- data.frame(object@combined_imputed_data)
 
@@ -572,25 +576,19 @@ setMethod("estimateCounterfactual", "ImputationPipeline", function(object, a_val
     data_copy[[treatment_variables[i]]] <- rep(a_vals[i], row_n)
   }
 
-  # use the model to make predictions using the copied dataset
-  predictions <- predict(model, newdata=data_copy, type="response")
-
-  # bart_estimates <- compute_po_Y(object@combined_imputed_data,
-  #                                object@variable_dictionary[["Y"]][1],
-  #                                object@variable_dictionary[["A"]],
-  #                                object@variable_dictionary[["X"]],
-  #                                data_copy,
-  #                                q=0.025,
-  #                                ndraws=1000)
-
-  # print("bart")
-  # print(bart_estimates)
+  bart_estimate <- compute_po_Y_binary(object@combined_imputed_data,
+                                 object@variable_dictionary[["Y"]][1],
+                                 object@variable_dictionary[["A"]],
+                                 object@MSM_weights,
+                                 data_copy,
+                                 q=0.025,
+                                 ndraws=1000)
 
   # the estimate is the mean of the predictions
   # if prime is true then save the estimate to the prime slot,
   # otherwise save the estimate to the non-prime slot
-  if (prime) object@counterfactual_a_prime <- mean(predictions)
-  else object@counterfactual_a <- mean(predictions)
+  if (prime) object@counterfactual_a_prime <- bart_estimate
+  else object@counterfactual_a <- bart_estimate
 
   return(object)
 })
