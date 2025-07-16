@@ -221,6 +221,14 @@ compute_po_Y_binary <- function(data, Y, A, weights, data_a, q = 0.025, ndraws) 
   bart_Y <- bart(x.train=x.train, y.train=y.train, x.test=x.test, ndpost=ndraws, 
                   weights=weights, verbose=FALSE)
 
+  # yhat.test is a matrix with dimension ndraws x nrows (ndraws rows and nrows columns),
+  # the row number represents the number of the posterior draw
+  # the column number represents the row number in the original dataset
+  # since the predictor variables in the test data are the same for each row in the original
+  # dataset, the estimates
+  # across each row are all the same (given a specific posterior draw, predictions will be
+  # the same for each row in the original dataset)
+  # and we can just take the first column and use its mean as the estimate
   # compute the estimate for the probability of success
   estimate <- mean(pnorm(bart_Y$yhat.test[,1]))
   
