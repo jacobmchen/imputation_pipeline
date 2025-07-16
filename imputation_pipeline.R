@@ -601,107 +601,111 @@ setMethod("estimateCounterfactual", "ImputationPipeline", function(object, a_val
   return(object)
 })
 
-# Simulation study starts here
-# set the seed
-set.seed(0)
-
-# define the size of the primary dataset
-primary_n <- 1000
-# define the size of the secondary dataset
-secondary_n <- 1000
-
-# define the standard deviation
-sd = 1
-
-# generate variables for the primary dataset
-X_primary <- rnorm(primary_n, 0, sd)
-A_primary <- X_primary + rnorm(primary_n, 0, sd)
-M_primary <- A_primary + X_primary + rnorm(primary_n, 0, 0.1*sd)
-Y_primary <- rbinom(primary_n, 1, expit(A_primary + X_primary + M_primary))
-
-# save the primary variables into a dataframe
-primary_data <- data.frame(
-  X=X_primary,
-  A=A_primary,
-  Y=Y_primary
-)
-
-# generate variables for the secondary dataset; it is the same DGP as
-# above
-X_secondary <- rnorm(secondary_n, 0, sd)
-A_secondary <- X_secondary + rnorm(secondary_n, 0, sd)
-M_secondary <- A_secondary + X_secondary + rnorm(secondary_n, 0, sd)
-Y_secondary <- rbinom(secondary_n, 1, expit(A_secondary + X_secondary + M_secondary))
-
-# save the variables with the mediation data into the secondary
-# dataset
-mediation_data <- data.frame(
-  X=X_secondary,
-  A=A_secondary,
-  M=M_secondary,
-  Y=Y_secondary
-)
-
-# create a named list, which will behave like a Python dictionary
-# this named list maps canonical variable names to a vector of what the variable
-# names are in the dataframe
-variable_dictionary <- list(
-  "X" = c("X"),
-  "A" = c("A"),
-  "M" = c("M"),
-  "Y" = c("Y")
-)
-
-# call the predefined constructor for creating a new imputation pipeline object
-pipeline <- NewImputationPipeline(primary_data, mediation_data, variable_dictionary)
-
-# learn the mediation densities and update the object
-pipeline <- learnMediationDensities(pipeline, TRUE, "test")
-
-# impute M values for the primary dataset
-pipeline <- imputeMediators(pipeline, 0)
-
-# learn the treatment densities and update the object
-pipeline <- learnTreatmentDensities(pipeline, TRUE, "test")
-
-# learn the marginal treatment densities and update the object
-pipeline <- learnMarginalTreatmentDensities(pipeline, TRUE, "test")
-
-# estimate the mediation term
-pipeline <- computePseudoOutcome(pipeline, c(1), c(-1))
-
-# compute the MSM weights
-pipeline <- computeMSMWeights(pipeline)
-
-# estimate the mediation term
-pipeline <- estimateMediationTerm(pipeline, c(1))
-print(pipeline@mediation_term)
-
-# estimate the counterfactual terms
-pipeline <- estimateCounterfactual(pipeline, c(1), TRUE)
-print(pipeline@counterfactual_a_prime)
-
-pipeline <- estimateCounterfactual(pipeline, c(-1), FALSE)
-print(pipeline@counterfactual_a)
-
-#####
-# compute ground-truth values
-X_primary <- rnorm(primary_n, 0, sd)
-A_primary <- X_primary + rnorm(primary_n, 0, sd)
-M_primary <- 1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
-Y_primary <- rbinom(primary_n, 1, expit(1 + X_primary + M_primary))
-print(paste("Y(1)", mean(Y_primary)))
-
-X_primary <- rnorm(primary_n, 0, sd)
-A_primary <- X_primary + rnorm(primary_n, 0, sd)
-M_primary <- -1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
-Y_primary <- rbinom(primary_n, 1, expit(-1 + X_primary + M_primary))
-print(paste("Y(-1)", mean(Y_primary)))
-
-X_primary <- rnorm(primary_n, 0, sd)
-A_primary <- X_primary + rnorm(primary_n, 0, sd)
-M_primary <- -1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
-Y_primary <- rbinom(primary_n, 1, expit(1 + X_primary + M_primary))
-print(paste("Y(1, M(-1))", mean(Y_primary)))
-
-# show(pipeline)
+# this if statement ensures that the code below only runs when this file
+# is run directly in the terminal
+if (sys.nframe() == 0) {
+  # Simulation study starts here
+  # set the seed
+  set.seed(0)
+  
+  # define the size of the primary dataset
+  primary_n <- 500
+  # define the size of the secondary dataset
+  secondary_n <- 500
+  
+  # define the standard deviation
+  sd = 1
+  
+  # generate variables for the primary dataset
+  X_primary <- rnorm(primary_n, 0, sd)
+  A_primary <- X_primary + rnorm(primary_n, 0, sd)
+  M_primary <- A_primary + X_primary + rnorm(primary_n, 0, 0.1*sd)
+  Y_primary <- rbinom(primary_n, 1, expit(A_primary + X_primary + M_primary))
+  
+  # save the primary variables into a dataframe
+  primary_data <- data.frame(
+    X=X_primary,
+    A=A_primary,
+    Y=Y_primary
+  )
+  
+  # generate variables for the secondary dataset; it is the same DGP as
+  # above
+  X_secondary <- rnorm(secondary_n, 0, sd)
+  A_secondary <- X_secondary + rnorm(secondary_n, 0, sd)
+  M_secondary <- A_secondary + X_secondary + rnorm(secondary_n, 0, sd)
+  Y_secondary <- rbinom(secondary_n, 1, expit(A_secondary + X_secondary + M_secondary))
+  
+  # save the variables with the mediation data into the secondary
+  # dataset
+  mediation_data <- data.frame(
+    X=X_secondary,
+    A=A_secondary,
+    M=M_secondary,
+    Y=Y_secondary
+  )
+  
+  # create a named list, which will behave like a Python dictionary
+  # this named list maps canonical variable names to a vector of what the variable
+  # names are in the dataframe
+  variable_dictionary <- list(
+    "X" = c("X"),
+    "A" = c("A"),
+    "M" = c("M"),
+    "Y" = c("Y")
+  )
+  
+  # call the predefined constructor for creating a new imputation pipeline object
+  pipeline <- NewImputationPipeline(primary_data, mediation_data, variable_dictionary)
+  
+  # learn the mediation densities and update the object
+  pipeline <- learnMediationDensities(pipeline, TRUE, "test")
+  
+  # impute M values for the primary dataset
+  pipeline <- imputeMediators(pipeline, 0)
+  
+  # learn the treatment densities and update the object
+  pipeline <- learnTreatmentDensities(pipeline, TRUE, "test")
+  
+  # learn the marginal treatment densities and update the object
+  pipeline <- learnMarginalTreatmentDensities(pipeline, TRUE, "test")
+  
+  # estimate the mediation term
+  pipeline <- computePseudoOutcome(pipeline, c(1), c(-1))
+  
+  # compute the MSM weights
+  pipeline <- computeMSMWeights(pipeline)
+  
+  # estimate the mediation term
+  pipeline <- estimateMediationTerm(pipeline, c(1))
+  print(pipeline@mediation_term)
+  
+  # estimate the counterfactual terms
+  pipeline <- estimateCounterfactual(pipeline, c(1), TRUE)
+  print(pipeline@counterfactual_a_prime)
+  
+  pipeline <- estimateCounterfactual(pipeline, c(-1), FALSE)
+  print(pipeline@counterfactual_a)
+  
+  #####
+  # compute ground-truth values
+  X_primary <- rnorm(primary_n, 0, sd)
+  A_primary <- X_primary + rnorm(primary_n, 0, sd)
+  M_primary <- 1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
+  Y_primary <- rbinom(primary_n, 1, expit(1 + X_primary + M_primary))
+  print(paste("Y(1)", mean(Y_primary)))
+  
+  X_primary <- rnorm(primary_n, 0, sd)
+  A_primary <- X_primary + rnorm(primary_n, 0, sd)
+  M_primary <- -1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
+  Y_primary <- rbinom(primary_n, 1, expit(-1 + X_primary + M_primary))
+  print(paste("Y(-1)", mean(Y_primary)))
+  
+  X_primary <- rnorm(primary_n, 0, sd)
+  A_primary <- X_primary + rnorm(primary_n, 0, sd)
+  M_primary <- -1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
+  Y_primary <- rbinom(primary_n, 1, expit(1 + X_primary + M_primary))
+  print(paste("Y(1, M(-1))", mean(Y_primary)))
+  
+  # show(pipeline)
+}
