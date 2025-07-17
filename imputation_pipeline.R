@@ -235,6 +235,82 @@ compute_po_Y_binary <- function(data, Y, A, weights, data_a, q = 0.025, ndraws) 
   return(estimate)
 }
 
+# set the generic for a method that standardizes the primary and mediation data using the
+# combined scale of both datasets
+setGeneric("standardizeData", function(object, to_exclude) standardGeneric("standardizeData"))
+
+# define a method for standardizing the data
+# to_exclude is a vector of variable names that should be excluded from standardization
+# such as binary and categorical variables
+# note that we do not standardize the Y variable
+setMethod("standardizeData", "ImputationPipeline", function(object, to_exclude) {
+  # get the A variables and its length
+  A_variables <- object@variable_dictionary[["A"]]
+  A_length <- length(A_variables)
+
+  # iterate through all of the A variables and standardize them across both datasets
+  for (i in 1:A_length) {
+    # get the string of the current A
+    cur_A <- A_variables[i]
+
+    # skip the excluded variable
+    if (cur_A %in% to_exclude) next
+
+    # combine the data for the current A in both datasets
+    combined_cur_A <- c(object@primary_data[[cur_A]], object@mediation_data[[cur_A]])
+
+    # compute the scale, which is the standard deviation of the combination of both
+    # datasets
+    scale <- sd(combined_cur_A)
+
+    # scale the current A variable with the combined standard deviation
+    object@primary_data[[cur_A]] <- object@primary_data[[cur_A]] / scale
+    object@mediation_data[[cur_A]] <- object@mediation_data[[cur_A]] / scale
+  }
+
+  # get the X variables and its length
+  X_variables <- object@variable_dictionary[["X"]]
+  X_length <- length(X_variables)
+
+  # iterate through all of the X variables and standardize them across both datasets
+  for (i in 1:X_length) {
+    # get the string of the current X
+    cur_X <- X_variables[i]
+
+    # skip the excluded variable
+    if (cur_X %in% to_exclude) next
+
+    # combine the data for the current X in both datasets
+    combined_cur_X <- c(object@primary_data[[cur_X]], object@mediation_data[[cur_X]])
+
+    # compute the scale
+    scale <- sd(combined_cur_X)
+
+    # scale the current X variable
+    object@primary_data[[cur_X]] <- object@primary_data[[cur_X]] / scale
+    object@mediation_data[[cur_X]] <- object@mediation_data[[cur_X]] / scale
+  }
+
+  # get the M variables and its length
+  M_variables <- object@variable_dictionary[["M"]]
+  M_length <- length(M_variables)
+
+  # iterate through all of the M variables and standardize them across both datasets
+  for (i in 1:M_length) {
+    # get the string of the current M variable
+    cur_M <- M_variables[i]
+
+    # skip the excluded variable
+    if (cur_M %in% to_exclude) next
+
+    # only the mediation data has mediation variables, so directly scale it
+    # by the observed standard deviation
+    object@mediation_data[[cur_M]] <- object@mediation_data[[cur_M]] / sd(object@mediation_data[[cur_M]])
+  }
+
+  return(object)
+})
+
 # set the generic so that the method learnMediationDensities exists in the method table for
 # the S4 dispatcher
 setGeneric("learnMediationDensities", function(object, read_from_rds, filename)
@@ -609,9 +685,9 @@ if (sys.nframe() == 0) {
   set.seed(0)
   
   # define the size of the primary dataset
-  primary_n <- 500
+  primary_n <- 1000
   # define the size of the secondary dataset
-  secondary_n <- 500
+  secondary_n <- 1000
   
   # define the standard deviation
   sd = 1
@@ -619,7 +695,7 @@ if (sys.nframe() == 0) {
   # generate variables for the primary dataset
   X_primary <- rnorm(primary_n, 0, sd)
   A_primary <- X_primary + rnorm(primary_n, 0, sd)
-  M_primary <- A_primary + X_primary + rnorm(primary_n, 0, 0.1*sd)
+  M_primary <- A_primary + X_primary + rnorm(primary_n, 0, sd)
   Y_primary <- rbinom(primary_n, 1, expit(A_primary + X_primary + M_primary))
   
   # save the primary variables into a dataframe
@@ -657,18 +733,21 @@ if (sys.nframe() == 0) {
   
   # call the predefined constructor for creating a new imputation pipeline object
   pipeline <- NewImputationPipeline(primary_data, mediation_data, variable_dictionary)
+
+  # standardize the data
+  # pipeline <- standardizeData(pipeline, c())
   
   # learn the mediation densities and update the object
-  pipeline <- learnMediationDensities(pipeline, TRUE, "test")
+  pipeline <- learnMediationDensities(pipeline, FALSE, "test")
   
   # impute M values for the primary dataset
   pipeline <- imputeMediators(pipeline, 0)
   
   # learn the treatment densities and update the object
-  pipeline <- learnTreatmentDensities(pipeline, TRUE, "test")
+  pipeline <- learnTreatmentDensities(pipeline, FALSE, "test")
   
   # learn the marginal treatment densities and update the object
-  pipeline <- learnMarginalTreatmentDensities(pipeline, TRUE, "test")
+  pipeline <- learnMarginalTreatmentDensities(pipeline, FALSE, "test")
   
   # estimate the mediation term
   pipeline <- computePseudoOutcome(pipeline, c(1), c(-1))
@@ -676,36 +755,36 @@ if (sys.nframe() == 0) {
   # compute the MSM weights
   pipeline <- computeMSMWeights(pipeline)
   
-  # estimate the mediation term
-  pipeline <- estimateMediationTerm(pipeline, c(1))
-  print(pipeline@mediation_term)
-  
   # estimate the counterfactual terms
+  print("counterfactual estimates")
   pipeline <- estimateCounterfactual(pipeline, c(1), TRUE)
   print(pipeline@counterfactual_a_prime)
   
   pipeline <- estimateCounterfactual(pipeline, c(-1), FALSE)
   print(pipeline@counterfactual_a)
+
+  # estimate the mediation term
+  print("mediation term estimate")
+  pipeline <- estimateMediationTerm(pipeline, c(1))
+  print(pipeline@mediation_term)
   
   #####
   # compute ground-truth values
   X_primary <- rnorm(primary_n, 0, sd)
   A_primary <- X_primary + rnorm(primary_n, 0, sd)
-  M_primary <- 1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
+  M_primary <- 1 + X_primary + rnorm(primary_n, 0, sd)
   Y_primary <- rbinom(primary_n, 1, expit(1 + X_primary + M_primary))
   print(paste("Y(1)", mean(Y_primary)))
   
   X_primary <- rnorm(primary_n, 0, sd)
   A_primary <- X_primary + rnorm(primary_n, 0, sd)
-  M_primary <- -1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
+  M_primary <- -1 + X_primary + rnorm(primary_n, 0, sd)
   Y_primary <- rbinom(primary_n, 1, expit(-1 + X_primary + M_primary))
   print(paste("Y(-1)", mean(Y_primary)))
   
   X_primary <- rnorm(primary_n, 0, sd)
   A_primary <- X_primary + rnorm(primary_n, 0, sd)
-  M_primary <- -1 + X_primary + rnorm(primary_n, 0, 0.1*sd)
+  M_primary <- -1 + X_primary + rnorm(primary_n, 0, sd)
   Y_primary <- rbinom(primary_n, 1, expit(1 + X_primary + M_primary))
   print(paste("Y(1, M(-1))", mean(Y_primary)))
-  
-  # show(pipeline)
 }
