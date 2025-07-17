@@ -10,8 +10,8 @@ set.seed(0)
 # datasets
 
 # read the unscaled datasets
-primary_data <- read.csv("primary_dataset_unscaled.csv")
-mediation_data <- read.csv("analysis_data_07162025.csv")
+primary_data <- read.csv("primary_data_final.csv")
+mediation_data <- read.csv("mediation_data_final.csv")
 
 head(primary_data)
 head(mediation_data)
@@ -52,10 +52,11 @@ pipeline <- learnTreatmentDensities(pipeline, read_from_rds, "07172025")
 pipeline <- learnMarginalTreatmentDensities(pipeline, read_from_rds, "07172025")
 
 # define the interventional values that we're interested in
-
+a_prime_vals <- c(1, 5)
+a_vals <- c(3, 1.5)
 
 # estimate the mediation term
-pipeline <- computePseudoOutcome(pipeline, c(1), c(-1))
+pipeline <- computePseudoOutcome(pipeline, a_prime_vals, a_vals)
 
 # compute the MSM weights
 pipeline <- computeMSMWeights(pipeline)
@@ -63,14 +64,14 @@ pipeline <- computeMSMWeights(pipeline)
 # estimate the counterfactual terms
 print("counterfactual estimates")
 # TRUE here tells the method to update the slot counterfacutal_a_prime
-pipeline <- estimateCounterfactual(pipeline, c(1), TRUE)
+pipeline <- estimateCounterfactual(pipeline, a_prime_vals, TRUE)
 print(pipeline@counterfactual_a_prime)
 
 # FALSE here tells the method to update the slot counterfactual_a
-pipeline <- estimateCounterfactual(pipeline, c(-1), FALSE)
+pipeline <- estimateCounterfactual(pipeline, a_vals, FALSE)
 print(pipeline@counterfactual_a)
 
 # estimate the mediation term
 print("mediation term estimate")
-pipeline <- estimateMediationTerm(pipeline, c(1))
+pipeline <- estimateMediationTerm(pipeline, a_prime_vals)
 print(pipeline@mediation_term)
