@@ -13,9 +13,6 @@ set.seed(0)
 primary_data <- read.csv("primary_data_final.csv")
 mediation_data <- read.csv("mediation_data_final.csv")
 
-head(primary_data)
-head(mediation_data)
-
 # define the variable dictionary
 variable_dictionary <- list(
     "X" = c("creatlst", "age", "gender", "bmi", "hypertn",
@@ -31,7 +28,7 @@ to_exclude <- c("gender", "hypertn", "dm", "copd", "chf", "prior_mi", "statin",
                 "acearb", "betablocker")
 
 # define whether we should read model data from RDS data
-read_from_rds <- FALSE
+read_from_rds <- TRUE
 
 # create the pipeline object
 pipeline <- NewImputationPipeline(primary_data, mediation_data, variable_dictionary)
@@ -57,6 +54,10 @@ a_vals <- c(3, 1.5)
 
 # estimate the mediation term
 pipeline <- computePseudoOutcome(pipeline, a_prime_vals, a_vals)
+# print("***debugging")
+# print(mean(pipeline@Y_p))
+# print(pipeline@Y_p)
+# print(mean(pipeline@combined_imputed_data[["aki"]]))
 
 # compute the MSM weights
 pipeline <- computeMSMWeights(pipeline)

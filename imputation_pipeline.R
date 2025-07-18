@@ -35,9 +35,9 @@ setClass("ImputationPipeline",
                     treatment_marginal_models="ANY", # a list of marginal treatment densities/estimations
                     MSM_weights="ANY", # a vector storing the calculation of MSM weights
                     Y_p="ANY", # a vector storing the pseudo-outcome
-                    mediation_term="numeric", # a number to store the estimate of the mediation term
-                    counterfactual_a="numeric", # a number to store the estimate of intervening on a
-                    counterfactual_a_prime="numeric" # a number to store the estimate of intervening on a'
+                    mediation_term="vector", # a number to store the estimate of the mediation term
+                    counterfactual_a="vector", # a number to store the estimate of intervening on a
+                    counterfactual_a_prime="vector" # a number to store the estimate of intervening on a'
                     ))
 
 # create a constructor
@@ -51,9 +51,9 @@ NewImputationPipeline <- function(primary_data, mediation_data, variable_diction
                 treatment_marginal_models=NULL,
                 MSM_weights=NULL,
                 Y_p=NULL,
-                mediation_term=0,
-                counterfactual_a=0,
-                counterfactual_a_prime=0)
+                mediation_term=c(0),
+                counterfactual_a=c(0),
+                counterfactual_a_prime=c(0))
 }
 
 # define the show method for the ImputationPipeline class to define how it should
@@ -230,10 +230,27 @@ compute_po_Y_binary <- function(data, Y, A, weights, data_a, q = 0.025, ndraws) 
   # the same for each row in the original dataset)
   # and we can just take the first column and use its mean as the estimate
   # compute the estimate for the probability of success
-  estimate <- mean(pnorm(bart_Y$yhat.test[,1]))
+  # estimate <- mean(pnorm(bart_Y$yhat.test[,1]))
   
-  return(estimate)
+  estimates <- c()
+  for (i in 1:ndraws) {
+    estimates <- c(estimates, mean(pnorm(bart_Y$yhat.test[i,])))
+  }
+  
+  estimate <- mean(estimates)
+  quants <- as.numeric(quantile(estimates, c(q, 1-q)))
+  
+  return(c(estimate, quants))
 }
+
+# bootstrap_intervals <- function(data, Y, A, weights, data_a, q = 0.025, ndraws, 
+#                                 num_bootstraps=200, binary=FALSE) {
+#   bootstrap_estimates <- c()
+#   
+#   for (i in 1:num_bootstraps) {
+#     
+#   }
+# }
 
 # set the generic for a method that standardizes the primary and mediation data using the
 # combined scale of both datasets
@@ -627,15 +644,24 @@ setMethod("estimateMediationTerm", "ImputationPipeline", function(object, a_prim
     data_copy[[treatment_variables[i]]] <- rep(a_prime_vals[i], row_n)
   }
 
+  # bart_estimates <- compute_po_Y(object@combined_imputed_data,
+  #                                "Y_p",
+  #                                object@variable_dictionary[["A"]],
+  #                                object@MSM_weights,
+  #                                data_copy,
+  #                                q=0.025,
+  #                                ndraws=1000)
+  
+  # use adjustment instead
   bart_estimates <- compute_po_Y(object@combined_imputed_data,
                                  "Y_p",
-                                 object@variable_dictionary[["A"]],
-                                 object@MSM_weights,
+                                 c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]]),
+                                 rep(1, row_n),
                                  data_copy,
                                  q=0.025,
                                  ndraws=1000)
 
-  object@mediation_term <- bart_estimates[1]
+  object@mediation_term <- bart_estimates
 
   return(object)
 })
@@ -660,13 +686,22 @@ setMethod("estimateCounterfactual", "ImputationPipeline", function(object, a_val
     data_copy[[treatment_variables[i]]] <- rep(a_vals[i], row_n)
   }
 
+  # bart_estimate <- compute_po_Y_binary(object@combined_imputed_data,
+  #                                object@variable_dictionary[["Y"]][1],
+  #                                object@variable_dictionary[["A"]],
+  #                                object@MSM_weights,
+  #                                data_copy,
+  #                                q=0.025,
+  #                                ndraws=1000)
+  
+  # use adjustment instead of weights
   bart_estimate <- compute_po_Y_binary(object@combined_imputed_data,
-                                 object@variable_dictionary[["Y"]][1],
-                                 object@variable_dictionary[["A"]],
-                                 object@MSM_weights,
-                                 data_copy,
-                                 q=0.025,
-                                 ndraws=1000)
+                                       object@variable_dictionary[["Y"]][1],
+                                       c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]]),
+                                       rep(1, row_n),
+                                       data_copy,
+                                       q=0.025,
+                                       ndraws=1000)
 
   # the estimate is the mean of the predictions
   # if prime is true then save the estimate to the prime slot,
