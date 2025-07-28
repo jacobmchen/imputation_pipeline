@@ -11,7 +11,9 @@ set.seed(0)
 
 # read the unscaled datasets
 primary_data <- read.csv("primary_data_final.csv")
+print(paste("primary data size:", nrow(primary_data)))
 mediation_data <- read.csv("mediation_data_final.csv")
+print(paste("mediation data size:", nrow(mediation_data)))
 
 # define the variable dictionary
 variable_dictionary <- list(
@@ -43,14 +45,14 @@ pipeline <- learnMediationDensities(pipeline, read_from_rds, "07172025")
 pipeline <- imputeMediators(pipeline, 0)
 
 # learn the treatment densities and update the object
-pipeline <- learnTreatmentDensities(pipeline, read_from_rds, "07172025")
+# pipeline <- learnTreatmentDensities(pipeline, read_from_rds, "07172025")
 
 # learn the marginal treatment densities and update the object
-pipeline <- learnMarginalTreatmentDensities(pipeline, read_from_rds, "07172025")
+# pipeline <- learnMarginalTreatmentDensities(pipeline, read_from_rds, "07172025")
 
 # define the interventional values that we're interested in
-a_prime_vals <- c(1, 5)
-a_vals <- c(3, 1.5)
+a_prime_vals <- c(0.5, 5)
+a_vals <- c(4, 1.5)
 
 # estimate the mediation term
 pipeline <- computePseudoOutcome(pipeline, a_prime_vals, a_vals)
@@ -60,7 +62,7 @@ pipeline <- computePseudoOutcome(pipeline, a_prime_vals, a_vals)
 # print(mean(pipeline@combined_imputed_data[["aki"]]))
 
 # compute the MSM weights
-pipeline <- computeMSMWeights(pipeline)
+# pipeline <- computeMSMWeights(pipeline)
 
 # estimate the counterfactual terms
 print("counterfactual estimates")
