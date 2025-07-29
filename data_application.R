@@ -45,10 +45,10 @@ pipeline <- learnMediationDensities(pipeline, read_from_rds, "07172025")
 pipeline <- imputeMediators(pipeline, 0)
 
 # learn the treatment densities and update the object
-# pipeline <- learnTreatmentDensities(pipeline, read_from_rds, "07172025")
+pipeline <- learnTreatmentDensities(pipeline, read_from_rds, "07172025")
 
 # learn the marginal treatment densities and update the object
-# pipeline <- learnMarginalTreatmentDensities(pipeline, read_from_rds, "07172025")
+pipeline <- learnMarginalTreatmentDensities(pipeline, read_from_rds, "07172025")
 
 # define the interventional values that we're interested in
 a_prime_vals <- c(0.5, 5)
@@ -62,7 +62,7 @@ pipeline <- computePseudoOutcome(pipeline, a_prime_vals, a_vals)
 # print(mean(pipeline@combined_imputed_data[["aki"]]))
 
 # compute the MSM weights
-# pipeline <- computeMSMWeights(pipeline)
+pipeline <- computeMSMWeights(pipeline)
 
 # estimate the counterfactual terms
 print("counterfactual estimates")
@@ -77,4 +77,12 @@ print(pipeline@counterfactual_a)
 # estimate the mediation term
 print("mediation term estimate")
 pipeline <- estimateMediationTerm(pipeline, a_prime_vals)
+print(pipeline@mediation_term)
+
+print("linear estimators")
+pipeline <- estimateCounterfactualLinear(pipeline, a_prime_vals, prime=TRUE)
+print(pipeline@counterfactual_a_prime)
+pipeline <- estimateCounterfactualLinear(pipeline, a_vals, prime=FALSE)
+print(pipeline@counterfactual_a)
+pipeline <- estimateCounterfactualLinear(pipeline, a_prime_vals, mixed=TRUE)
 print(pipeline@mediation_term)

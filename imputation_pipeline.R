@@ -723,6 +723,8 @@ setMethod("estimateCounterfactualLinear", "ImputationPipeline", function(object,
   # if mixed is true, then fit a linear regression model, otherwise fit a linear logistic regression model
   if (mixed) model <- glm(formula=formula, family=gaussian, data=dataset, weights=weights_stand)
   else model <- glm(formula=formula, family=binomial, data=dataset, weights=weights_stand)
+  
+  print(summary(model))
 
   # make a copy of the combined_imputed_data
   data_copy <- data.frame(object@combined_imputed_data)
