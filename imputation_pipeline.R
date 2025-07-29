@@ -689,6 +689,105 @@ setMethod("estimateCounterfactual", "ImputationPipeline", function(object, a_val
   return(object)
 })
 
+# define a function that outputs a string representing the desired formula for regression
+create_formula <- function(outcome, features, two_way=FALSE) {
+  if (length(features) == 0) {
+    # if there are no features, then fit an outcome with just an intercept term
+    return(paste0(outcome, "~1"))
+  } else {
+    if (two_way) {
+      # if we want to include interaction terms, put the features inside parantheses
+      # with a square
+      return(paste0(outcome, "~(", paste(features, collapse="+"), ")^2"))
+    }
+    # otherwise, 
+    return(paste0(outcome, "~", paste(features, collapse="+")))
+  }
+}
+
+# set the generic for estimating counterfactual terms using linear models
+setGeneric("estimateCounterfactualLinear", function(object, a_vals, prime=TRUE, mixed=FALSE) standardGeneric("estimateCounterfactualLinear"))
+
+# define method for estimating counterfactual terms using linear logistic regression models
+setMethod("estimateCounterfactualLinear", "ImputationPipeline", function(object, a_vals, prime=TRUE, mixed=FALSE) {
+  # create the formula; if mixed is true, then we are making estimates for the mixed mediation term
+  if (mixed) formula <- create_formula("Y_p", object@variable_dictionary[["A"]], two_way=TRUE)
+  else formula <- create_formula(object@variable_dictionary[["Y"]][1], object@variable_dictionary[["A"]], two_way=TRUE)
+
+  # get a copy of the combined dataset
+  dataset <- data.frame(object@combined_imputed_data)
+  # add the weights as a column to the combined dataset
+  dataset$weights_stand <- object@MSM_weights
+
+  # fit a linear logistic regression for the outcome given treatments using the MSM weights
+  # if mixed is true, then fit a linear regression model, otherwise fit a linear logistic regression model
+  if (mixed) model <- glm(formula=formula, family=gaussian, data=dataset, weights=weights_stand)
+  else model <- glm(formula=formula, family=binomial, data=dataset, weights=weights_stand)
+
+  # make a copy of the combined_imputed_data
+  data_copy <- data.frame(object@combined_imputed_data)
+
+  # get the size of the dataset
+  row_n <- nrow(data_copy)
+
+  # get the treatment variables
+  treatment_variables <- object@variable_dictionary[["A"]]
+  treatment_length <- length(treatment_variables)
+
+  # replace each of the A's with the a_vals
+  for (i in 1:length(treatment_variables)) {
+    data_copy[[treatment_variables[i]]] <- rep(a_vals[i], row_n)
+  }
+
+  # get predictions for the fitted reweighted model
+  if (mixed) predictions <- predict(model, newdata=data_copy)
+  else predictions <- predict(model, newdata=data_copy, type="response")
+
+  # get the predicted outcome; we take just the first number in the vector of predictions
+  # since they should be all the same
+  mean <- predictions[1]
+
+  # get bootstrap estimates for the effect
+  bootstrap_estimates <- c()
+  for (i in 1:200) {
+    # sample with replacement from all possible rows
+    bootstrap_sample <- sample(row_n, size=row_n, replace=TRUE)
+
+    # subset our dataset to the bootstrap sample
+    bootstrap_data <- dataset[bootstrap_sample, ]
+
+    # fit a reweighted model using the bootstrap sample
+    if (mixed) model_bootstrap <- glm(formula=formula, family=gaussian, data=bootstrap_data, weights=weights_stand)
+    else model_bootstrap <- glm(formula=formula, family=binomial, data=bootstrap_data, weights=weights_stand)
+
+    # get predictions from the fitted bootstrap model
+    if (mixed) predictions_bootstrap <- predict(model_bootstrap, newdata=data_copy)
+    else predictions_bootstrap <- predict(model_bootstrap, newdata=data_copy, type="response")
+
+    # append our bootstrap estimate to the list of all bootstrap estimates
+    bootstrap_estimates <- c(bootstrap_estimates, predictions_bootstrap[1])
+  }
+
+  # get the 2.5th and 97.5th quantiles of the bootstrap estimates
+  quants <- as.numeric(quantile(bootstrap_estimates, c(0.025, 0.975)))
+
+  # save the point estimate and bootstrap confidence intervals
+  estimate <- c(mean, quants[1], quants[2])
+
+  # if mixed is true, then save the estimate into the mediation term slot
+  # and return the object
+  if (mixed) {
+    object@mediation_term <- estimate
+    return(object)
+  }
+
+  # if prime is true, save the estimate to the prime slot
+  if (prime) object@counterfactual_a_prime <- estimate
+  else object@counterfactual_a <- estimate
+
+  return(object)
+})
+
 # this if statement ensures that the code below only runs when this file
 # is run directly in the terminal
 if (sys.nframe() == 0) {
@@ -756,10 +855,10 @@ if (sys.nframe() == 0) {
   pipeline <- imputeMediators(pipeline, 0)
   
   # learn the treatment densities and update the object
-  # pipeline <- learnTreatmentDensities(pipeline, FALSE, "test")
+  pipeline <- learnTreatmentDensities(pipeline, TRUE, "test")
   
   # learn the marginal treatment densities and update the object
-  # pipeline <- learnMarginalTreatmentDensities(pipeline, FALSE, "test")
+  pipeline <- learnMarginalTreatmentDensities(pipeline, TRUE, "test")
   
   # estimate the mediation term
   pipeline <- computePseudoOutcome(pipeline, c(1), c(-1))
@@ -778,6 +877,16 @@ if (sys.nframe() == 0) {
   # estimate the mediation term
   print("mediation term estimate")
   pipeline <- estimateMediationTerm(pipeline, c(1))
+  print(pipeline@mediation_term)
+
+  print("linear estimates")
+  pipeline <- estimateCounterfactualLinear(pipeline, c(1), prime=TRUE)
+  print(pipeline@counterfactual_a_prime)
+
+  pipeline <- estimateCounterfactualLinear(pipeline, c(-1), prime=FALSE)
+  print(pipeline@counterfactual_a)
+
+  pipeline <- estimateCounterfactualLinear(pipeline, c(1), mixed=TRUE)
   print(pipeline@mediation_term)
   
   #####
