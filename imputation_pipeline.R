@@ -35,9 +35,9 @@ setClass("ImputationPipeline",
                     treatment_marginal_models="ANY", # a list of marginal treatment densities/estimations
                     MSM_weights="ANY", # a vector storing the calculation of MSM weights
                     Y_p="ANY", # a vector storing the pseudo-outcome
-                    mediation_term="vector", # a number to store the estimate of the mediation term
-                    counterfactual_a="vector", # a number to store the estimate of intervening on a
-                    counterfactual_a_prime="vector" # a number to store the estimate of intervening on a'
+                    total_effect="vector", # a number to store the estimate of the mediation term
+                    direct_effect="vector", # a number to store the estimate of intervening on a
+                    indirect_effect="vector" # a number to store the estimate of intervening on a'
                     ))
 
 # create a constructor
@@ -51,9 +51,9 @@ NewImputationPipeline <- function(primary_data, mediation_data, variable_diction
                 treatment_marginal_models=NULL,
                 MSM_weights=NULL,
                 Y_p=NULL,
-                mediation_term=c(0),
-                counterfactual_a=c(0),
-                counterfactual_a_prime=c(0))
+                total_effect=c(0),
+                direct_effect=c(0),
+                indirect_effect=c(0))
 }
 
 # define the show method for the ImputationPipeline class to define how it should
@@ -185,10 +185,9 @@ compute_po_Y <- function(data, Y, A, weights, data_a, q = 0.025, ndraws) {
   
   # calculate the expected value of the potential outcome
   expected_val <- bart_Y$yhat.test.mean
-  quants <- as.numeric(quantile(expected_val, c(q, 1-q)))
-  bart.expected_val <- mean(expected_val)
-  
-  return(c(bart.expected_val, quants[1], quants[2]))
+
+  # return the whole vector of column averages corresponding to each posterior draw
+  return(expected_val)
 }
 
 # define a helper function for counterfactuals using BART
@@ -238,11 +237,9 @@ compute_po_Y_binary <- function(data, Y, A, weights, data_a, q = 0.025, ndraws) 
   for (i in 1:nrow(data)) {
     estimates <- c(estimates, mean(pnorm(bart_Y$yhat.test[,i])))
   }
-  
-  estimate <- mean(estimates)
-  quants <- as.numeric(quantile(estimates, c(q, 1-q)))
-  
-  return(c(estimate, quants))
+
+  # return the whole vector of column estimates, corresponding to the multiple posterior draws
+  return(estimates)
 }
 
 # set the generic for a method that standardizes the primary and mediation data using the
@@ -506,8 +503,11 @@ setGeneric("computePseudoOutcome", function(object, a_prime_vals, a_vals) standa
 
 # define a method for estimating the mediation term
 setMethod("computePseudoOutcome", "ImputationPipeline", function(object, a_prime_vals, a_vals) {
+  # get the number of rows in the dataset we are working with
+  row_n <- nrow(object@combined_imputed_data)
+
   # compute the pseudo-outcome
-  Y_p <- object@combined_imputed_data[[object@variable_dictionary[["Y"]]]]
+  ratio <- rep(1, row_n)
 
   # get the covariate variables
   covariate_variables <- object@variable_dictionary[["X"]]
@@ -522,9 +522,6 @@ setMethod("computePseudoOutcome", "ImputationPipeline", function(object, a_prime
 
   # get the models for the mediation analysis
   mediation_models <- object@mediation_models
-
-  # get the number of rows in the dataset we are working with
-  row_n <- nrow(object@combined_imputed_data)
 
   for (i in 1:med_length) {
     # get the current model, which is stored in the first position of the tuple
@@ -568,8 +565,11 @@ setMethod("computePseudoOutcome", "ImputationPipeline", function(object, a_prime
     numerator <- predict(cur_model, new_A=A, new_W=L)
     
     # update the value of the pseudo-outcome
-    Y_p <- Y_p * numerator / denominator
+    ratio <- ratio * numerator / denominator
   }
+
+  # multiply the ratio onto the outcome
+  Y_p <- object@combined_imputed_data[[object@variable_dictionary[["Y"]]]] * ratio
 
   # save the pseuo-outcome into the slot
   object@Y_p <- Y_p
@@ -705,53 +705,64 @@ create_formula <- function(outcome, features, two_way=FALSE) {
   }
 }
 
+# function that takes a dataset, a list of variables, and sets all of the variables to those
+# values
+intervene_dataset <- function(data, variables, values) {
+  data_copy <- data.frame(data)
+
+  # get the size of the dataset
+  row_n <- nrow(data_copy)
+
+  # replace each of the variables with the interventional values
+  for (i in 1:length(variables)) {
+    data_copy[[variables[i]]] <- rep(values[i], row_n)
+  }
+
+  return(data_copy)
+}
+
 # set the generic for estimating counterfactual terms using linear models
-setGeneric("estimateCounterfactualLinear", function(object, a_vals, prime=TRUE, mixed=FALSE) standardGeneric("estimateCounterfactualLinear"))
+setGeneric("estimateEffectsLinear", function(object, a_prime_vals, a_vals) standardGeneric("estimateEffectsLinear"))
 
 # define method for estimating counterfactual terms using linear logistic regression models
-setMethod("estimateCounterfactualLinear", "ImputationPipeline", function(object, a_vals, prime=TRUE, mixed=FALSE) {
-  # create the formula; if mixed is true, then we are making estimates for the mixed mediation term
-  if (mixed) formula <- create_formula("Y_p", object@variable_dictionary[["A"]], two_way=TRUE)
-  else formula <- create_formula(object@variable_dictionary[["Y"]][1], object@variable_dictionary[["A"]], two_way=TRUE)
+setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prime_vals, a_vals) {
+  # create the formulas for the mixed mediation term and for the regular outcome
+  formula_mixed <- create_formula("Y_p", object@variable_dictionary[["A"]], two_way=TRUE)
+  formula_reg <- create_formula(object@variable_dictionary[["Y"]][1], object@variable_dictionary[["A"]], two_way=TRUE)
 
   # get a copy of the combined dataset
   dataset <- data.frame(object@combined_imputed_data)
   # add the weights as a column to the combined dataset
   dataset$weights_stand <- object@MSM_weights
 
+  # fit a linear regression for the pseudo-outcome given treatment using the MSM weights
+  model_mixed <- glm(formula=formula_mixed, family=gaussian, data=dataset, weights=weights_stand)
   # fit a linear logistic regression for the outcome given treatments using the MSM weights
-  # if mixed is true, then fit a linear regression model, otherwise fit a linear logistic regression model
-  if (mixed) model <- glm(formula=formula, family=gaussian, data=dataset, weights=weights_stand)
-  else model <- glm(formula=formula, family=binomial, data=dataset, weights=weights_stand)
-  
-  print(summary(model))
+  model_reg <- glm(formula=formula_reg, family=binomial, data=dataset, weights=weights_stand)
 
-  # make a copy of the combined_imputed_data
-  data_copy <- data.frame(object@combined_imputed_data)
+  # get copies of the dataset where we intervene on the treatment variables to the prime
+  # and non-prime values
+  data_a_prime <- intervene_dataset(dataset, object@variable_dictionary[["A"]], a_prime_vals)
+  data_a <- intervene_dataset(dataset, object@variable_dictionary[["A"]], a_vals)
 
-  # get the size of the dataset
-  row_n <- nrow(data_copy)
+  # get predictions for the outcome
+  predictions_mixed <- predict(model_mixed, newdata=data_a_prime)
+  predictions_a_prime <- predict(model_reg, newdata=data_a_prime, type="response")
+  predictions_a <- predict(model_reg, newdata=data_a, type="response")
 
-  # get the treatment variables
-  treatment_variables <- object@variable_dictionary[["A"]]
-  treatment_length <- length(treatment_variables)
+  # compute the total, indirect, and direct effects
+  total_effect <- predictions_a_prime[1] - predictions_a[1]
+  indirect_effect <- predictions_a_prime[1] - predictions_mixed[1]
+  direct_effect <- predictions_mixed[1] - predictions_a[1]
 
-  # replace each of the A's with the a_vals
-  for (i in 1:length(treatment_variables)) {
-    data_copy[[treatment_variables[i]]] <- rep(a_vals[i], row_n)
-  }
-
-  # get predictions for the fitted reweighted model
-  if (mixed) predictions <- predict(model, newdata=data_copy)
-  else predictions <- predict(model, newdata=data_copy, type="response")
-
-  # get the predicted outcome; we take just the first number in the vector of predictions
-  # since they should be all the same
-  mean <- predictions[1]
-
-  # get bootstrap estimates for the effect
-  bootstrap_estimates <- c()
+  # get bootstrap estimates for the effects of interest
+  bootstrap_total <- c()
+  bootstrap_indirect <- c()
+  bootstrap_direct <- c()
   for (i in 1:200) {
+    # get the number of rows in the data
+    row_n <- nrow(dataset)
+
     # sample with replacement from all possible rows
     bootstrap_sample <- sample(row_n, size=row_n, replace=TRUE)
 
@@ -759,33 +770,75 @@ setMethod("estimateCounterfactualLinear", "ImputationPipeline", function(object,
     bootstrap_data <- dataset[bootstrap_sample, ]
 
     # fit a reweighted model using the bootstrap sample
-    if (mixed) model_bootstrap <- glm(formula=formula, family=gaussian, data=bootstrap_data, weights=weights_stand)
-    else model_bootstrap <- glm(formula=formula, family=binomial, data=bootstrap_data, weights=weights_stand)
+    model_bootstrap_mixed <- glm(formula=formula_mixed, family=gaussian, data=bootstrap_data, weights=weights_stand)
+    model_bootstrap_reg <- glm(formula=formula_reg, family=binomial, data=bootstrap_data, weights=weights_stand)
 
     # get predictions from the fitted bootstrap model
-    if (mixed) predictions_bootstrap <- predict(model_bootstrap, newdata=data_copy)
-    else predictions_bootstrap <- predict(model_bootstrap, newdata=data_copy, type="response")
+    predictions_mixed <- predict(model_bootstrap_mixed, newdata=data_a_prime)
+    predictions_a_prime <- predict(model_bootstrap_reg, newdata=data_a_prime, type="response")
+    predictions_a <- predict(model_bootstrap_reg, newdata=data_a, type="response")
 
     # append our bootstrap estimate to the list of all bootstrap estimates
-    bootstrap_estimates <- c(bootstrap_estimates, predictions_bootstrap[1])
+    bootstrap_total <- c(bootstrap_total, predictions_a_prime[1] - predictions_a[1])
+    bootstrap_indirect <- c(bootstrap_indirect, predictions_a_prime[1] - predictions_mixed[1])
+    bootstrap_direct <- c(bootstrap_direct, predictions_mixed[1] - predictions_a[1])
   }
 
-  # get the 2.5th and 97.5th quantiles of the bootstrap estimates
-  quants <- as.numeric(quantile(bootstrap_estimates, c(0.025, 0.975)))
+  # save the point estimates and bootstrap intervals of the total, indirect, and direct effects
+  object@total_effect <- c(total_effect, as.numeric(quantile(bootstrap_total, c(0.025, 0.975))))
+  object@indirect_effect <- c(indirect_effect, as.numeric(quantile(bootstrap_indirect, c(0.025, 0.975))))
+  object@direct_effect <- c(direct_effect, as.numeric(quantile(bootstrap_direct, c(0.025, 0.975))))
 
-  # save the point estimate and bootstrap confidence intervals
-  estimate <- c(mean, quants[1], quants[2])
+  return(object)
+})
 
-  # if mixed is true, then save the estimate into the mediation term slot
-  # and return the object
-  if (mixed) {
-    object@mediation_term <- estimate
-    return(object)
-  }
+# set the generic for estimating effects using non-parametric BART models
+setGeneric("estimateEffects", function(object, a_prime_vals, a_vals) standardGeneric("estimateEffects"))
 
-  # if prime is true, save the estimate to the prime slot
-  if (prime) object@counterfactual_a_prime <- estimate
-  else object@counterfactual_a <- estimate
+# define a method for estimating effects using non-parametric BART models
+setMethod("estimateEffects", "ImputationPipeline", function(object, a_prime_vals, a_vals) {
+  # get a copy of the combined dataset
+  dataset <- data.frame(object@combined_imputed_data)
+
+  # get copies of the dataset where we intervene on the treatment variables to the prime
+  # and non-prime values
+  data_a_prime <- intervene_dataset(dataset, object@variable_dictionary[["A"]], a_prime_vals)
+  data_a <- intervene_dataset(dataset, object@variable_dictionary[["A"]], a_vals)
+  
+  # get BART estimates over all of the posterior samples
+  bart_a_prime <- compute_po_Y_binary(object@combined_imputed_data,
+                                       object@variable_dictionary[["Y"]][1],
+                                       c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]]),
+                                       rep(1, row_n), # this makes sure that the weights passed in are all 1's
+                                       data_a_prime,
+                                       q=0.025,
+                                       ndraws=1000)
+
+  bart_a <- compute_po_Y_binary(object@combined_imputed_data,
+                                       object@variable_dictionary[["Y"]][1],
+                                       c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]]),
+                                       rep(1, row_n), # this makes sure that the weights passed in are all 1's
+                                       data_a,
+                                       q=0.025,
+                                       ndraws=1000)
+
+  bart_mixed <- compute_po_Y(object@combined_imputed_data,
+                                 "Y_p",
+                                 c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]]),
+                                 rep(1, row_n), # this makes sure that the weights passed in are all 1's
+                                 data_a_prime,
+                                 q=0.025,
+                                 ndraws=1000)
+
+  # compute differences as the estimates for the effects of interest
+  total_effect <- bart_a_prime - bart_a
+  indirect_effect <- bart_a_prime - bart_mixed
+  direct_effect <- bart_mixed - bart_a
+
+  # compute the means and quantiles as the credible intervals
+  object@total_effect <- c(mean(total_effect), as.numeric(quantile(total_effect, c(0.025, 0.975))))
+  object@indirect_effect <- c(mean(indirect_effect), as.numeric(quantile(indirect_effect, c(0.025, 0.975))))
+  object@direct_effect <- c(mean(direct_effect), as.numeric(quantile(direct_effect, c(0.025, 0.975))))
 
   return(object)
 })
@@ -867,29 +920,18 @@ if (sys.nframe() == 0) {
   
   # compute the MSM weights
   pipeline <- computeMSMWeights(pipeline)
-  
-  # estimate the counterfactual terms
-  print("counterfactual estimates")
-  pipeline <- estimateCounterfactual(pipeline, c(1), TRUE)
-  print(pipeline@counterfactual_a_prime)
-  
-  pipeline <- estimateCounterfactual(pipeline, c(-1), FALSE)
-  print(pipeline@counterfactual_a)
 
-  # estimate the mediation term
-  print("mediation term estimate")
-  pipeline <- estimateMediationTerm(pipeline, c(1))
-  print(pipeline@mediation_term)
+  print("BART estimates")
+  pipeline <- estimateEffects(pipeline, c(1), c(-1))
+  print(pipeline@total_effect)
+  print(pipeline@indirect_effect)
+  print(pipeline@direct_effect)
 
   print("linear estimates")
-  pipeline <- estimateCounterfactualLinear(pipeline, c(1), prime=TRUE)
-  print(pipeline@counterfactual_a_prime)
-
-  pipeline <- estimateCounterfactualLinear(pipeline, c(-1), prime=FALSE)
-  print(pipeline@counterfactual_a)
-
-  pipeline <- estimateCounterfactualLinear(pipeline, c(1), mixed=TRUE)
-  print(pipeline@mediation_term)
+  pipeline <- estimateEffectsLinear(pipeline, c(1), c(-1))
+  print(pipeline@total_effect)
+  print(pipeline@indirect_effect)
+  print(pipeline@direct_effect)
   
   #####
   # compute ground-truth values
