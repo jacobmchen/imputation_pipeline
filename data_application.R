@@ -65,24 +65,14 @@ pipeline <- computePseudoOutcome(pipeline, a_prime_vals, a_vals)
 pipeline <- computeMSMWeights(pipeline)
 
 # estimate the counterfactual terms
-print("counterfactual estimates")
-# TRUE here tells the method to update the slot counterfacutal_a_prime
-pipeline <- estimateCounterfactual(pipeline, a_prime_vals, TRUE)
-print(pipeline@counterfactual_a_prime)
-
-# FALSE here tells the method to update the slot counterfactual_a
-pipeline <- estimateCounterfactual(pipeline, a_vals, FALSE)
-print(pipeline@counterfactual_a)
-
-# estimate the mediation term
-print("mediation term estimate")
-pipeline <- estimateMediationTerm(pipeline, a_prime_vals)
-print(pipeline@mediation_term)
+print("bart estimates")
+pipeline <- estimateEffects(pipeline, a_prime_vals, a_vals)
+print(pipeline@total_effect)
+print(pipeline@indirect_effect)
+print(pipeline@direct_effect)
 
 print("linear estimators")
-pipeline <- estimateCounterfactualLinear(pipeline, a_prime_vals, prime=TRUE)
-print(pipeline@counterfactual_a_prime)
-pipeline <- estimateCounterfactualLinear(pipeline, a_vals, prime=FALSE)
-print(pipeline@counterfactual_a)
-pipeline <- estimateCounterfactualLinear(pipeline, a_prime_vals, mixed=TRUE)
-print(pipeline@mediation_term)
+pipeline <- estimateEffectsLinear(pipeline, a_prime_vals, a_vals)
+print(pipeline@total_effect)
+print(pipeline@indirect_effect)
+print(pipeline@direct_effect)
