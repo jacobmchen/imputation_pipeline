@@ -766,7 +766,7 @@ setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prim
   total_effect <- predictions_a_prime[1] - predictions_a[1]
   indirect_effect <- predictions_a_prime[1] - predictions_mixed[1]
   direct_effect <- predictions_mixed[1] - predictions_a[1]
-
+  
   # get bootstrap estimates for the effects of interest
   bootstrap_total <- c()
   bootstrap_indirect <- c()

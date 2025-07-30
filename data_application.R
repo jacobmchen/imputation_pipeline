@@ -66,13 +66,25 @@ pipeline <- computeMSMWeights(pipeline)
 
 # estimate the counterfactual terms
 print("bart estimates")
-pipeline <- estimateEffects(pipeline, a_prime_vals, a_vals)
+pipeline <- estimateEffects(pipeline, a_prime_vals, a_vals, adjust=TRUE)
+print(pipeline@total_effect)
+print(pipeline@indirect_effect)
+print(pipeline@direct_effect)
+
+print("bart estimates, no adjustment")
+pipeline <- estimateEffects(pipeline, a_prime_vals, a_vals, adjust=FALSE)
 print(pipeline@total_effect)
 print(pipeline@indirect_effect)
 print(pipeline@direct_effect)
 
 print("linear estimators")
-pipeline <- estimateEffectsLinear(pipeline, a_prime_vals, a_vals)
+pipeline <- estimateEffectsLinear(pipeline, a_prime_vals, a_vals, adjust=TRUE)
+print(pipeline@total_effect)
+print(pipeline@indirect_effect)
+print(pipeline@direct_effect)
+
+print("linear estimators, no adjustment")
+pipeline <- estimateEffectsLinear(pipeline, a_prime_vals, a_vals, adjust=FALSE)
 print(pipeline@total_effect)
 print(pipeline@indirect_effect)
 print(pipeline@direct_effect)
