@@ -182,12 +182,18 @@ compute_po_Y <- function(data, Y, A, weights, data_a, q = 0.025, ndraws) {
   bart_Y <- bart(x.train=x.train, y.train=y.train, x.test=x.test, ndpost=ndraws, 
                   # weights=weights,
                   verbose=FALSE)
-  
-  # calculate the expected value of the potential outcome
-  expected_val <- bart_Y$yhat.test.mean
+
+  # recall that across rows we have the posterior sample and across columns we have
+  # the rows in the dataset; each average across an entire row is an estimate for the
+  # counterfactual, and we want to compute the estimate for the counterfactual for
+  # each posterior sample
+  estimates <- c()
+  for (i in 1:ndraws) {
+    estimates <- c(estimates, mean(bart_Y$yhat.test[i,]))
+  }
 
   # return the whole vector of column averages corresponding to each posterior draw
-  return(expected_val)
+  return(estimates)
 }
 
 # define a helper function for counterfactuals using BART
@@ -234,8 +240,8 @@ compute_po_Y_binary <- function(data, Y, A, weights, data_a, q = 0.025, ndraws) 
   # estimate <- mean(pnorm(bart_Y$yhat.test[,1]))
   
   estimates <- c()
-  for (i in 1:nrow(data)) {
-    estimates <- c(estimates, mean(pnorm(bart_Y$yhat.test[,i])))
+  for (i in 1:ndraws) {
+    estimates <- c(estimates, mean(pnorm(bart_Y$yhat.test[i,])))
   }
 
   # return the whole vector of column estimates, corresponding to the multiple posterior draws
@@ -722,10 +728,10 @@ intervene_dataset <- function(data, variables, values) {
 }
 
 # set the generic for estimating counterfactual terms using linear models
-setGeneric("estimateEffectsLinear", function(object, a_prime_vals, a_vals) standardGeneric("estimateEffectsLinear"))
+setGeneric("estimateEffectsLinear", function(object, a_prime_vals, a_vals, adjust) standardGeneric("estimateEffectsLinear"))
 
 # define method for estimating counterfactual terms using linear logistic regression models
-setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prime_vals, a_vals) {
+setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prime_vals, a_vals, adjust=TRUE) {
   # create the formulas for the mixed mediation term and for the regular outcome
   formula_mixed <- create_formula("Y_p", object@variable_dictionary[["A"]], two_way=TRUE)
   formula_reg <- create_formula(object@variable_dictionary[["Y"]][1], object@variable_dictionary[["A"]], two_way=TRUE)
@@ -733,7 +739,13 @@ setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prim
   # get a copy of the combined dataset
   dataset <- data.frame(object@combined_imputed_data)
   # add the weights as a column to the combined dataset
-  dataset$weights_stand <- object@MSM_weights
+  if (adjust) {
+    # if we are adjusting for confounding, then use the MSM weights
+    dataset$weights_stand <- object@MSM_weights
+  } else {
+    # if we are not adjusting for confounding, then all the weights are just 1
+    dataset$weights_stand <- rep(1, nrow(dataset))
+  }
 
   # fit a linear regression for the pseudo-outcome given treatment using the MSM weights
   model_mixed <- glm(formula=formula_mixed, family=gaussian, data=dataset, weights=weights_stand)
@@ -793,10 +805,11 @@ setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prim
 })
 
 # set the generic for estimating effects using non-parametric BART models
-setGeneric("estimateEffects", function(object, a_prime_vals, a_vals) standardGeneric("estimateEffects"))
+setGeneric("estimateEffects", function(object, a_prime_vals, a_vals, adjust) standardGeneric("estimateEffects"))
 
 # define a method for estimating effects using non-parametric BART models
-setMethod("estimateEffects", "ImputationPipeline", function(object, a_prime_vals, a_vals) {
+# the parameter adjust tells us whether to adjust for baseline confounders
+setMethod("estimateEffects", "ImputationPipeline", function(object, a_prime_vals, a_vals, adjust=TRUE) {
   # get a copy of the combined dataset
   dataset <- data.frame(object@combined_imputed_data)
 
@@ -804,11 +817,19 @@ setMethod("estimateEffects", "ImputationPipeline", function(object, a_prime_vals
   # and non-prime values
   data_a_prime <- intervene_dataset(dataset, object@variable_dictionary[["A"]], a_prime_vals)
   data_a <- intervene_dataset(dataset, object@variable_dictionary[["A"]], a_vals)
+
+  # define the adjustment set based on whether we want to adjust for confounders
+  # if we are not adjusting for confounders, then the adjustment set is just the treatment variables
+  if (adjust) {
+    adjustment_set <- c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]])
+  } else {
+    adjustment_set <- c(object@variable_dictionary[["A"]])
+  }
   
   # get BART estimates over all of the posterior samples
   bart_a_prime <- compute_po_Y_binary(object@combined_imputed_data,
                                        object@variable_dictionary[["Y"]][1],
-                                       c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]]),
+                                       adjustment_set,
                                        rep(1, row_n), # this makes sure that the weights passed in are all 1's
                                        data_a_prime,
                                        q=0.025,
@@ -816,7 +837,7 @@ setMethod("estimateEffects", "ImputationPipeline", function(object, a_prime_vals
 
   bart_a <- compute_po_Y_binary(object@combined_imputed_data,
                                        object@variable_dictionary[["Y"]][1],
-                                       c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]]),
+                                       adjustment_set,
                                        rep(1, row_n), # this makes sure that the weights passed in are all 1's
                                        data_a,
                                        q=0.025,
@@ -824,7 +845,7 @@ setMethod("estimateEffects", "ImputationPipeline", function(object, a_prime_vals
 
   bart_mixed <- compute_po_Y(object@combined_imputed_data,
                                  "Y_p",
-                                 c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]]),
+                                 adjustment_set,
                                  rep(1, row_n), # this makes sure that the weights passed in are all 1's
                                  data_a_prime,
                                  q=0.025,
@@ -922,13 +943,25 @@ if (sys.nframe() == 0) {
   pipeline <- computeMSMWeights(pipeline)
 
   print("BART estimates")
-  pipeline <- estimateEffects(pipeline, c(1), c(-1))
+  pipeline <- estimateEffects(pipeline, c(1), c(-1), adjust=TRUE)
+  print(pipeline@total_effect)
+  print(pipeline@indirect_effect)
+  print(pipeline@direct_effect)
+
+  print("BART estimates, no adjustment")
+  pipeline <- estimateEffects(pipeline, c(1), c(-1), adjust=FALSE)
   print(pipeline@total_effect)
   print(pipeline@indirect_effect)
   print(pipeline@direct_effect)
 
   print("linear estimates")
-  pipeline <- estimateEffectsLinear(pipeline, c(1), c(-1))
+  pipeline <- estimateEffectsLinear(pipeline, c(1), c(-1), adjust=TRUE)
+  print(pipeline@total_effect)
+  print(pipeline@indirect_effect)
+  print(pipeline@direct_effect)
+
+  print("linear estimates, no adjustment")
+  pipeline <- estimateEffectsLinear(pipeline, c(1), c(-1), adjust=FALSE)
   print(pipeline@total_effect)
   print(pipeline@indirect_effect)
   print(pipeline@direct_effect)
