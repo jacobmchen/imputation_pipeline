@@ -732,11 +732,7 @@ setGeneric("estimateEffectsLinear", function(object, a_prime_vals, a_vals, adjus
 
 # define method for estimating counterfactual terms using linear logistic regression models
 setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prime_vals, a_vals, adjust=TRUE) {
-  if (adjust) {
-    adjustment_set <- c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]])
-  } else {
-    adjustment_set <- c(object@variable_dictionary[["A"]])
-  }
+  adjustment_set <- c(object@variable_dictionary[["A"]])
 
   # create the formulas for the mixed mediation term and for the regular outcome
   formula_mixed <- create_formula("Y_p", adjustment_set, two_way=TRUE)
@@ -746,7 +742,7 @@ setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prim
   dataset <- data.frame(object@combined_imputed_data)
   # add the weights as a column to the combined dataset
   # for now ignore MSM weights
-  if (FALSE) {
+  if (adjust) {
     # if we are adjusting for confounding, then use the MSM weights
     dataset$weights_stand <- object@MSM_weights
   } else {
