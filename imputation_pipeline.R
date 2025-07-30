@@ -732,14 +732,21 @@ setGeneric("estimateEffectsLinear", function(object, a_prime_vals, a_vals, adjus
 
 # define method for estimating counterfactual terms using linear logistic regression models
 setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prime_vals, a_vals, adjust=TRUE) {
+  if (adjust) {
+    adjustment_set <- c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]])
+  } else {
+    adjustment_set <- c(object@variable_dictionary[["A"]])
+  }
+
   # create the formulas for the mixed mediation term and for the regular outcome
-  formula_mixed <- create_formula("Y_p", object@variable_dictionary[["A"]], two_way=TRUE)
-  formula_reg <- create_formula(object@variable_dictionary[["Y"]][1], object@variable_dictionary[["A"]], two_way=TRUE)
+  formula_mixed <- create_formula("Y_p", adjustment_set, two_way=TRUE)
+  formula_reg <- create_formula(object@variable_dictionary[["Y"]][1], adjustment_set, two_way=TRUE)
 
   # get a copy of the combined dataset
   dataset <- data.frame(object@combined_imputed_data)
   # add the weights as a column to the combined dataset
-  if (adjust) {
+  # for now ignore MSM weights
+  if (FALSE) {
     # if we are adjusting for confounding, then use the MSM weights
     dataset$weights_stand <- object@MSM_weights
   } else {
@@ -763,9 +770,9 @@ setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prim
   predictions_a <- predict(model_reg, newdata=data_a, type="response")
 
   # compute the total, indirect, and direct effects
-  total_effect <- predictions_a_prime[1] - predictions_a[1]
-  indirect_effect <- predictions_a_prime[1] - predictions_mixed[1]
-  direct_effect <- predictions_mixed[1] - predictions_a[1]
+  total_effect <- mean(predictions_a_prime) - mean(predictions_a)
+  indirect_effect <- mean(predictions_a_prime) - mean(predictions_mixed)
+  direct_effect <- mean(predictions_mixed) - mean(predictions_a)
   
   # get bootstrap estimates for the effects of interest
   bootstrap_total <- c()
@@ -791,9 +798,9 @@ setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prim
     predictions_a <- predict(model_bootstrap_reg, newdata=data_a, type="response")
 
     # append our bootstrap estimate to the list of all bootstrap estimates
-    bootstrap_total <- c(bootstrap_total, predictions_a_prime[1] - predictions_a[1])
-    bootstrap_indirect <- c(bootstrap_indirect, predictions_a_prime[1] - predictions_mixed[1])
-    bootstrap_direct <- c(bootstrap_direct, predictions_mixed[1] - predictions_a[1])
+    bootstrap_total <- c(bootstrap_total, mean(predictions_a_prime) - mean(predictions_a))
+    bootstrap_indirect <- c(bootstrap_indirect, mean(predictions_a_prime) - mean(predictions_mixed))
+    bootstrap_direct <- c(bootstrap_direct, mean(predictions_mixed) - mean(predictions_a))
   }
 
   # save the point estimates and bootstrap intervals of the total, indirect, and direct effects
