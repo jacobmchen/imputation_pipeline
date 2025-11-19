@@ -15,7 +15,7 @@ set.seed(0)
 # read the unscaled datasets
 primary_data <- read.csv("primary_data_final.csv")
 print(paste("primary data size:", nrow(primary_data)))
-mediation_data <- read.csv("mediation_data_final.csv")
+mediation_data <- read.csv("mediation_data_final_average_change.csv")
 print(paste("mediation data size:", nrow(mediation_data)))
 
 # define the variable dictionary
@@ -24,7 +24,7 @@ variable_dictionary <- list(
             "dm", "copd", "chf", "prior_mi", "hct", "hdef",
             "statin", "acearb", "betablocker", "rbc_transfusion"),
     "A" = c("nadirDO2", "xclamp_duration"),
-    "M" = c("delta_KIM.1_average_change", "delta_MCP.1_average_change", "delta_NGAL_average_change", "delta_YKL.40_average_change"),
+    "M" = c("KIM.1_average_change", "MCP.1_average_change", "NGAL_average_change", "YKL.40_average_change"),
     "Y" = c("aki")
 )
 
@@ -33,7 +33,7 @@ to_exclude <- c("gender", "hypertn", "dm", "copd", "chf", "prior_mi", "statin",
                 "acearb", "betablocker")
 
 # define whether we should read model data from RDS data
-read_from_rds <- TRUE
+read_from_rds <- FALSE
 
 # create the pipeline object
 pipeline <- NewImputationPipeline(primary_data, mediation_data, variable_dictionary)
@@ -42,16 +42,16 @@ pipeline <- NewImputationPipeline(primary_data, mediation_data, variable_diction
 pipeline <- standardizeData(pipeline, to_exclude)
 
 # learn the mediation densities and update the object
-pipeline <- learnMediationDensities(pipeline, read_from_rds, "07172025")
+pipeline <- learnMediationDensities(pipeline, read_from_rds, "11192025")
 
 # impute M values for the primary dataset, set the seed to be 0
 pipeline <- imputeMediators(pipeline, 0)
 
 # learn the treatment densities and update the object
-pipeline <- learnTreatmentDensities(pipeline, read_from_rds, "07172025")
+pipeline <- learnTreatmentDensities(pipeline, read_from_rds, "11192025")
 
 # learn the marginal treatment densities and update the object
-pipeline <- learnMarginalTreatmentDensities(pipeline, read_from_rds, "07172025")
+pipeline <- learnMarginalTreatmentDensities(pipeline, read_from_rds, "11192025")
 
 # define the interventional values that we're interested in
 a_prime_vals <- c(0.5, 5)

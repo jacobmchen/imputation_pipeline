@@ -2,7 +2,7 @@
 
 # read the unscaled datasets
 primary_data <- read.csv("primary_dataset_unscaled.csv")
-mediation_data <- read.csv("analysis_data_07162025.csv")
+mediation_data <- read.csv("analysis_data_11192025.csv")
 
 primary_data$nadirDO2 <- primary_data$NadirDO2
 primary_data$xclamp_duration <- primary_data$XClampDuration
@@ -28,6 +28,7 @@ variable_list <- c( c("creatlst", "age", "gender", "bmi", "hypertn",
                       "statin", "acearb", "betablocker", "rbc_transfusion"),
                     c("nadirDO2", "xclamp_duration"),
                     c("delta_KIM.1", "delta_MCP.1", "delta_NGAL", "delta_YKL.40"),
+                    c("KIM.1_average_change", "MCP.1_average_change", "NGAL_average_change", "YKL.40_average_change"),
                     c("aki") )
 
 mediation_data <- mediation_data[, variable_list]
@@ -36,5 +37,5 @@ mediation_data <- mediation_data[, variable_list]
 primary_data <- primary_data[complete.cases(primary_data), ]
 mediation_data <- mediation_data[complete.cases(mediation_data), ]
 
-write.csv(primary_data, "primary_data_final.csv", row.names=FALSE)
+# write.csv(primary_data, "primary_data_final.csv", row.names=FALSE)
 write.csv(mediation_data, "mediation_data_final.csv", row.names=FALSE)
