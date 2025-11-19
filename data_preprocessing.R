@@ -28,7 +28,6 @@ variable_list <- c( c("creatlst", "age", "gender", "bmi", "hypertn",
                       "statin", "acearb", "betablocker", "rbc_transfusion"),
                     c("nadirDO2", "xclamp_duration"),
                     c("delta_KIM.1", "delta_MCP.1", "delta_NGAL", "delta_YKL.40"),
-                    c("KIM.1_average_change", "MCP.1_average_change", "NGAL_average_change", "YKL.40_average_change"),
                     c("aki") )
 
 mediation_data <- mediation_data[, variable_list]
