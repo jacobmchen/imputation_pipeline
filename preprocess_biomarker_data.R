@@ -12,21 +12,20 @@ mediation_data <- read.csv("analysis_data_07162025.csv")
 biomarker_names <- c("KIM.1", "MCP.1", "NGAL", "YKL.40")
 
 # iterate through each of the biomarker names
-for (biomarker in biomarkernames) {
+for (biomarker in biomarker_names) {
     # declare an empty vector to save the average metric that we are computing
     average_change <- c()
 
     # get the whole columns for the baseline and 4 time points
-    baseline <- mediation_data[[paste(biomarker, "_0")]]
-    time_1 <- mediation_data[[paste(biomarker, "_1")]]
-    time_2 <- mediation_data[[paste(biomarker, "_2")]]
-    time_3 <- mediation_data[[paste(biomarker, "_3")]]
-    time_4 <- mediation_data[[paste(biomarker, "_4")]]
+    baseline <- mediation_data[[paste0(biomarker, "_0")]]
+    time_1 <- mediation_data[[paste0(biomarker, "_1")]]
+    time_2 <- mediation_data[[paste0(biomarker, "_2")]]
+    time_3 <- mediation_data[[paste0(biomarker, "_3")]]
+    time_4 <- mediation_data[[paste0(biomarker, "_4")]]
+    average_change <- (time_1 + time_2 + time_3 + time_4)/4 - baseline
 
-    average_change <- mean(time_1 + time_2 + time_3 + time_4, na.rm=TRUE) - baseline
-
-    mediation_data[[paste(biomarker, "_average_change")]] <- average_change
+    mediation_data[[paste0(biomarker, "_average_change")]] <- average_change
 }
 
 # save the new dataset
-write.csv(mediation_data, "analysis_data_11-19-2025.csv", row.names=FALSE)
+write.csv(mediation_data, "analysis_data_11192025.csv", row.names=FALSE)
