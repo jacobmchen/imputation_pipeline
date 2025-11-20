@@ -27,11 +27,11 @@ primary_data <- primary_data[, variable_list]
 # that we need to preprocess
 variations <- list()
 variations[["original"]] <- c("delta_KIM.1", "delta_MCP.1", "delta_NGAL", "delta_YKL.40")
-variations[["average_change"]] <- c("KIM.1_average_change", "delta_MCP.1_average_change", "delta_NGAL_average_change", "delta_YKL.40_average_change")
-variations[["KIM.1"]] <- c("KIM.1")
-variations[["MCP.1"]] <- c("MCP.1")
-variations[["NGAL"]] <- c("NGAL")
-variations[["YKL.40"]] <- c("YKL.40")
+variations[["average_change"]] <- c("KIM.1_average_change", "MCP.1_average_change", "NGAL_average_change", "YKL.40_average_change")
+variations[["KIM.1"]] <- c("delta_KIM.1")
+variations[["MCP.1"]] <- c("delta_MCP.1")
+variations[["NGAL"]] <- c("delta_NGAL")
+variations[["YKL.40"]] <- c("delta_YKL.40")
 
 # create a vector of the names in the named list that we need to iterate through
 variation_names <- c("original", "average_change", "KIM.1", "MCP.1", "NGAL", "YKL.40")
@@ -46,12 +46,12 @@ for (name in variation_names) {
                         c("aki") )
 
     # create a subset of the observed data
-    mediation_data <- mediation_data[, variable_list]
+    cur_mediation_data <- mediation_data[, variable_list]
 
     # keep only fully observed rows
-    mediation_data <- mediation_data[complete.cases(mediation_data), ]
+    cur_mediation_data <- cur_mediation_data[complete.cases(cur_mediation_data), ]
     # save the dataset
-    write.csv(mediation_data, paste0("mediation_data_final_", name, ".csv"), row.names=FALSE)
+    write.csv(cur_mediation_data, paste0("mediation_data_final_", name, ".csv"), row.names=FALSE)
 }
 
 # keep only fully observed rows for primary_data then write to csv
