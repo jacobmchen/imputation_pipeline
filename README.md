@@ -28,3 +28,9 @@ Additional analyses
 
 These two additional analyses should not be too difficult. The first one involves changing the data dictionary in the data_application.R file. We will create four new files that are copies of the original ``data_application.R`` where each file only uses one mediator.
 The second involves computing new columns for the biomarker data and then pushing through the new dataset through the same code. After computing the new column, we will create a copy of ``data_application.R`` that uses data for these new columns as the mediator.
+
+2025-12-03
+Additional analyses
+1. Compute the causal effect of causally significant treatments on each of the four biomarkers.
+
+This analysis can just use the smaller dataset with biomarker data. This is because using an imputation method will not increase the efficiency of the method. One additional task is that we will need to implement the computing the counterfactual mean for a continuous outcome. Actually, it is already implemented, so hopefully it won't be too complicated.

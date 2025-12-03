@@ -867,6 +867,61 @@ setMethod("estimateEffects", "ImputationPipeline", function(object, a_prime_vals
   return(object)
 })
 
+# set the generic for estimating effects using non-parametric BART models
+setGeneric("estimateEffectMediators", function(object, a_prime_vals, a_vals, adjust) standardGeneric("estimateEffectMediators"))
+
+# define a method that computes the causal effect of the treatments on the mediator variables,
+# essentially, we are computing E[M(a)] for each M in the variable dictionary
+# the parameter adjust tells us whether to adjust for baseline confounders
+setMethod("estimateEffectMediators", "ImputationPipeline", function(object, a_prime_vals, a_vals, adjust=TRUE) {
+  # get a copy of the mediation dataset
+  dataset <- data.frame(object@mediation_data)
+
+  # get copies of the dataset where we intervene on the treatment variables to the prime
+  # and non-prime values
+  data_a_prime <- intervene_dataset(dataset, object@variable_dictionary[["A"]], a_prime_vals)
+  data_a <- intervene_dataset(dataset, object@variable_dictionary[["A"]], a_vals)
+
+  # define the adjustment set based on whether we want to adjust for confounders
+  # if we are not adjusting for confounders, then the adjustment set is just the treatment variables
+  if (adjust) {
+    adjustment_set <- c(object@variable_dictionary[["A"]], object@variable_dictionary[["X"]])
+  } else {
+    adjustment_set <- c(object@variable_dictionary[["A"]])
+  }
+
+  # iterate through each variable in the variable dictionary for M
+  for (mediator in object@variable_dictionary[["M"]]) {
+    # get BART estimates over all of the posterior samples at a_prime values
+    bart_a_prime <- compute_po_Y(object@mediation_data,
+                                    mediator,
+                                    adjustment_set,
+                                    rep(1, row_n), # this makes sure that the weights passed in are all 1's
+                                    data_a_prime,
+                                    q=0.025,
+                                    ndraws=1000)
+
+    # get BART estimates over all of the posterior samples at a values
+    bart_a <- compute_po_Y(object@mediation_data,
+                                mediator,
+                                adjustment_set,
+                                rep(1, row_n), # this makes sure that the weights passed in are all 1's
+                                data_a,
+                                q=0.025,
+                                ndraws=1000)
+
+    # compute differences as the estimates for the effects of interest
+    causal_effect <- bart_a_prime - bart_a
+
+    # print the results directly
+    print(paste(mediator, "causal effect"))
+    print(mean(causal_effect))
+    print(as.numeric(quantile(causal_effect, c(0.025, 0.975))))
+  }
+  
+  return(object)
+})
+
 # this if statement ensures that the code below only runs when this file
 # is run directly in the terminal
 if (sys.nframe() == 0) {
@@ -929,21 +984,24 @@ if (sys.nframe() == 0) {
   
   # learn the mediation densities and update the object
   pipeline <- learnMediationDensities(pipeline, TRUE, "test")
-  
+
   # impute M values for the primary dataset
   pipeline <- imputeMediators(pipeline, 0)
-  
+
   # learn the treatment densities and update the object
   pipeline <- learnTreatmentDensities(pipeline, TRUE, "test")
-  
+
   # learn the marginal treatment densities and update the object
   pipeline <- learnMarginalTreatmentDensities(pipeline, TRUE, "test")
-  
+
   # estimate the mediation term
   pipeline <- computePseudoOutcome(pipeline, c(1), c(-1))
-  
+
   # compute the MSM weights
   pipeline <- computeMSMWeights(pipeline)
+
+  # compute the causal effect of the treatments on the mediators
+  pipeline <- estimateEffectMediators(pipeline, c(1), c(-1), adjust=TRUE)
 
   print("BART estimates")
   pipeline <- estimateEffects(pipeline, c(1), c(-1), adjust=TRUE)
@@ -976,13 +1034,13 @@ if (sys.nframe() == 0) {
   M_primary <- 1 + X_primary + rnorm(primary_n, 0, sd)
   Y_primary <- rbinom(primary_n, 1, expit(1 + X_primary + M_primary))
   print(paste("Y(1)", mean(Y_primary)))
-  
+
   X_primary <- rnorm(primary_n, 0, sd)
   A_primary <- X_primary + rnorm(primary_n, 0, sd)
   M_primary <- -1 + X_primary + rnorm(primary_n, 0, sd)
   Y_primary <- rbinom(primary_n, 1, expit(-1 + X_primary + M_primary))
   print(paste("Y(-1)", mean(Y_primary)))
-  
+
   X_primary <- rnorm(primary_n, 0, sd)
   A_primary <- X_primary + rnorm(primary_n, 0, sd)
   M_primary <- -1 + X_primary + rnorm(primary_n, 0, sd)
