@@ -12,7 +12,7 @@ set.seed(0)
 # read the unscaled datasets
 primary_data <- read.csv("primary_data_final.csv")
 print(paste("primary data size:", nrow(primary_data)))
-mediation_data <- read.csv("mediation_data_final.csv")
+mediation_data <- read.csv("mediation_data_final_original.csv")
 print(paste("mediation data size:", nrow(mediation_data)))
 
 # define the variable dictionary
