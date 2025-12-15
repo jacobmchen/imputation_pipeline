@@ -34,3 +34,8 @@ Additional analyses
 1. Compute the causal effect of causally significant treatments on each of the four biomarkers.
 
 This analysis can just use the smaller dataset with biomarker data. This is because using an imputation method will not increase the efficiency of the method. One additional task is that we will need to implement the computing the counterfactual mean for a continuous outcome. Actually, it is already implemented, so hopefully it won't be too complicated.
+
+2025-12-15
+Note to self:
+- Note that the ``data_application.R`` file in this repo relies on data from a file titled ``primary_data_final.csv``. This file is obtained from ``cardiac_surgery_aki/feature_selection/feature_selection.Rmd`` where I performed a sample split. The first sample split was used to do feature selection on which of the 17 selected features are potentially causally relevant. The second sample split was used to estimate causal effects.
+- The ``feature_selection.Rmd`` file then further depends on ``perfusion_data.csv``, ``combined_data.csv``, and ``DO2_curve_features.csv``. The ``perfusion_data.csv`` ``combined_data.csv`` files come from ``datamerge/data_merge.Rmd`` where I merge the perfusion and flatfile together. The ``DO2_curve_features.csv`` file comes from ``data_exploration/functional_data_analysis.Rmd`` where I compute the 17 features that we think are plausible causes of AKI. Detailed updates are from the February 2, 2025 commit of ``cardiac_surgery_aki`` repo.
