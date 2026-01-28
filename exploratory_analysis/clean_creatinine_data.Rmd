@@ -1,0 +1,89 @@
+2026-01-27
+This file accomplishes the following tasks
+1. Read the urinary creatinine data.
+2. Merge with the biomarker data.
+3. Compute the ratios KIM-1/creatinine and NGAL/creatinine at each time point.
+
+```{r}
+# load package for manipulating tibbles
+library(tidyverse)
+# load package for reading xlsx files
+library(readxl)
+```
+
+```{r}
+# read the raw creatinine data
+urinary_creatinine_data <- read_excel("../../../../Lee2024Creatinine-Final.xlsx")
+creat_data <- urinary_creatinine_data %>% select(`Parikh lab ID`, `URCREA_final`) %>%
+  rename(sample=`Parikh lab ID`, urcrea=URCREA_final) %>%
+  mutate(urcrea = as.double(urcrea))
+head(creat_data)
+```
+
+```{r}
+# read the raw biomarker data
+biomarker_data <- read_excel("../../../../pivoted_raw_data.xlsx")
+biomarker_data <- biomarker_data %>% rename(sample = Sample)
+head(biomarker_data)
+```
+
+```{r}
+# join the urinary creatinine data with the urinary biomarker data
+# and match by the name of the sample
+merged_data <- inner_join(creat_data, biomarker_data, by="sample")
+head(merged_data)
+```
+
+```{r}
+# compute the ratios of KIM-1 and NGAL over urinary creatinine
+merged_data <- merged_data %>%
+  mutate(`KIM-1_stand` = `KIM-1` / urcrea) %>%
+  mutate(NGAL_stand = NGAL / urcrea)
+
+head(merged_data)
+```
+
+```{r}
+aki_patient_data <- read.csv("stand_delta_KIM1_NGAL_AKI.csv")
+
+data_by_id <- merged_data %>%
+  mutate(sample = sub("-NC", "", sample)) %>%
+  mutate(sample = sub("Pre-CPB/", "", sample)) %>%
+  mutate(PID = as.double(substr(sample, 1, 4))) %>%
+  mutate(collection_time = as.double(sub(".*T", "", sample))) %>%
+  select(-sample) %>%
+  filter(PID %in% aki_patient_data$PID)
+
+write.csv(data_by_id, "raw_data_aki.csv", row.names=FALSE)
+```
+
+```{r}
+# separate the sample into the patient ID and collection time then
+# pivot the data wider so that each row is only one patient ID and the
+# columns contain measures of urinary creatinine and the biomarkers at
+# each time point
+pivoted_data <- merged_data %>%
+  mutate(sample = sub("-NC", "", sample)) %>%
+  mutate(sample = sub("Pre-CPB/", "", sample)) %>%
+  mutate(PID = as.double(substr(sample, 1, 4))) %>%
+  mutate(collection_time = as.double(sub(".*T", "", sample))) %>%
+  select(-sample) %>%
+  pivot_wider(names_from = collection_time, values_from = c(urcrea, `KIM-1`, `MCP-1`, NGAL, `YKL-40`, `KIM-1_stand`, `NGAL_stand`))
+
+head(pivoted_data)
+```
+
+```{r}
+# compute the difference between KIM-1 and NGAL at T1 and T0 to get
+# the change values that we are interested in
+cleaned_data <- pivoted_data %>%
+  mutate(delta_KIM1_stand = `KIM-1_stand_1` - `KIM-1_stand_0`) %>%
+  mutate(delta_NGAL_stand = NGAL_stand_1 - NGAL_stand_0) %>%
+  select(c(PID, delta_KIM1_stand, delta_NGAL_stand))
+
+print(cleaned_data)
+```
+
+```{r}
+write.csv(cleaned_data, "standardized_KIM1_NGAL.csv", row.names=FALSE)
+```

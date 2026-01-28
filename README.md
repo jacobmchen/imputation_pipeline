@@ -42,8 +42,23 @@ Note to self (some of the files named below are not in the Github repository but
 - The file ``analysis_data_11192025.csv`` contains raw data for the urinary biomarker data. It is computed from ``aki_mediation/data_formatting.Rmd`` which contains code for all of the data processing we had to do for the urinary biomarker data.
 
 2026-01-12
-Additional analyses (done in ``exploratory_data_analysis.R``)
+Additional analyses (done in ``exploratory_data_analysis.R`` in the directory ``exploratory_analysis``)
 1. In the mediation dataset where measurements of the biomarkers are recorded, look at average delta NGAL and KIM-1 when conditioning on patients that experienced AKI and when conditioning on patients that did not experience AKI.
 2. Plot the histogram of change in creatinine 48 hours post-operation and at baseline for patients that experienced AKI. This will show us the severity of the AKI for patients that experienced it, giving us an idea of how much we should expect to see biomarkers be released during X-clamp.
     - The raw creatinine data is contained in ``../../../KDIGO-AKI.xlsx``. The column ``48hrs_delCr`` in the excel sheet contains the change in creatinine 48 hours after surgery. So we just need to filter to patients with AKI then plot a histogram of change in creatinine. Since the definition of AKI is that there is an increase of at least 0.3, the smallest value we should observe is 0.3.
     - We subsetted specifically to patients that fulfill the criterion of KDIGO AKI at 48 hours post surgery, which is an increase of 0.3 in creatinine compared to baseline. There were some patients that experienced AKI according to other criteria, but in this analysis, we focused on patients with the 48 hours definition.
+
+2026-01-27
+The goal of this analysis is to evaluate the amount of KIM-1 and NGAL released adjusted by the concentration of creatinine in the urine. The steps of this analysis are as follows.
+1. Urinary creatinine data is contained in ``../../../Lee2024Creatinine Final.xlsx``. The column "Parikh Lab ID" contains both the patient ID and time of collection (T0-T4) of the urinary creatinine. The column "URCREA_final" contains the actual measurements for urinary creatinine. The first step of this analysis is to clean this data and match it with the biomarker data contained in ``../../../pivoted_raw_data.xlsx``.
+2. The second step is to compute adjusted values of KIM-1 and NGAL based on the concentration of creatinine in the urine at each time point. We will compute the ratios of KIM-1 over creatinine and NGAL over creatinine. This will measure the amount of KIM-1 per miligram of creatinine and NGAL per miligram of creatinine.
+3. The third step is to compute the amount of KIM-1 and NGAL per miligram of creatinine difference between T1 and T0.
+4. Finally, the fourth step is to subset to patients that experience KDIGO AKI 48 hours post operation and compute the means and standard deviations for delta KIM-1 and NGAL per miligram of creatinine.
+
+Steps 1 through 3 are performed in ``clean_creatinine_data.Rmd`` in the directory ``exploratory_analysis``.
+Step 4 is performed in ``exploratory_data_analysis_stand.R`` in the directory ``exploratory_analysis``.
+
+Intermediate csv files and the data they contain are detailed here:
+1. ``raw_data_aki.csv``: urinary creatinine data and biomarker data along with standardized KIM-1 and NGAL values subsetted to patients that experience AKI 48 hours post surgery (increase of serum creatinine > 0.3 mg/dL).
+2. ``standardized_KIM1_NGAL.csv``: standardized KIM-1 at T1 minus T0 and standardized NGAL at T1 minus T0 for every patient
+3. ``stand_delta_KIM1_NGAL_AKI.csv``: same as above except subsetted to patients with AKI 48 hours post surgery
