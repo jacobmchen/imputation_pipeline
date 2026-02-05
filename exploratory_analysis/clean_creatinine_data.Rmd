@@ -78,10 +78,18 @@ head(pivoted_data)
 # the change values that we are interested in
 cleaned_data <- pivoted_data %>%
   mutate(delta_KIM1_stand = `KIM-1_stand_1` - `KIM-1_stand_0`) %>%
+  mutate(delta_KIM1_stand_T2 = `KIM-1_stand_2` - `KIM-1_stand_0`) %>%
+  mutate(delta_KIM1_stand_T3 = `KIM-1_stand_3` - `KIM-1_stand_0`) %>%
+  mutate(delta_KIM1_stand_T4 = `KIM-1_stand_4` - `KIM-1_stand_0`) %>%
   mutate(delta_NGAL_stand = NGAL_stand_1 - NGAL_stand_0) %>%
-  select(c(PID, delta_KIM1_stand, delta_NGAL_stand))
+  select(c(PID, delta_KIM1_stand, delta_NGAL_stand, delta_KIM1_stand_T2
+           ,  delta_KIM1_stand_T3,  delta_KIM1_stand_T4))
 
 print(cleaned_data)
+```
+
+```{r}
+cleaned_data %>% filter(delta_KIM1_stand > 100)
 ```
 
 ```{r}
