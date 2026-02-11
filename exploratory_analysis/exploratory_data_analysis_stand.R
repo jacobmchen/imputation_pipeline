@@ -1,4 +1,4 @@
-# Exploratory data anlysis for the following descriptive
+# Exploratory data analysis for the following descriptive
 # properties of the data:
 # 1. Conditional on patients who experienced and did not
 #    experience AKI, what is the average change in 

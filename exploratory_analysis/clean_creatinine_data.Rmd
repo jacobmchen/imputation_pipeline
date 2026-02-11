@@ -54,7 +54,7 @@ data_by_id <- merged_data %>%
   select(-sample) %>%
   filter(PID %in% aki_patient_data$PID)
 
-write.csv(data_by_id, "raw_data_aki.csv", row.names=FALSE)
+# write.csv(data_by_id, "raw_data_aki.csv", row.names=FALSE)
 ```
 
 ```{r}
@@ -82,13 +82,20 @@ cleaned_data <- pivoted_data %>%
   mutate(delta_KIM1_stand_T3 = `KIM-1_stand_3` - `KIM-1_stand_0`) %>%
   mutate(delta_KIM1_stand_T4 = `KIM-1_stand_4` - `KIM-1_stand_0`) %>%
   mutate(delta_NGAL_stand = NGAL_stand_1 - NGAL_stand_0) %>%
-  select(c(PID, delta_KIM1_stand, delta_NGAL_stand, delta_KIM1_stand_T2
-           ,  delta_KIM1_stand_T3,  delta_KIM1_stand_T4))
+  mutate(delta_NGAL_stand_T2 = NGAL_stand_2 - NGAL_stand_0) %>%
+  mutate(delta_NGAL_stand_T3 = NGAL_stand_3 - NGAL_stand_0) %>%
+  mutate(delta_NGAL_stand_T4 = NGAL_stand_4 - NGAL_stand_0) %>%
+  select(c(PID, delta_KIM1_stand, delta_NGAL_stand, delta_KIM1_stand_T2,
+           delta_KIM1_stand_T3,  delta_KIM1_stand_T4,
+           delta_NGAL_stand_T2, delta_NGAL_stand_T3,
+           delta_NGAL_stand_T4))
 
 print(cleaned_data)
 ```
 
 ```{r}
+# this code doesn't really do anything, I'm just using it to
+# check outlier data
 cleaned_data %>% filter(delta_KIM1_stand > 100)
 ```
 
