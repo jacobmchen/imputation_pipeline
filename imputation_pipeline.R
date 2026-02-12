@@ -275,6 +275,7 @@ setMethod("standardizeData", "ImputationPipeline", function(object, to_exclude) 
     # compute the scale, which is the standard deviation of the combination of both
     # datasets
     scale <- sd(combined_cur_A)
+    print(paste("sample standard deviation of", cur_A, scale))
 
     # scale the current A variable with the combined standard deviation
     object@primary_data[[cur_A]] <- object@primary_data[[cur_A]] / scale
@@ -732,6 +733,8 @@ setGeneric("estimateEffectsLinear", function(object, a_prime_vals, a_vals, adjus
 
 # define method for estimating counterfactual terms using linear logistic regression models
 setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prime_vals, a_vals, adjust=TRUE) {
+  # adjustment set is the set of features for the linear regression;
+  # since we're using a weighted regression, this is just the treatment variables
   adjustment_set <- c(object@variable_dictionary[["A"]])
 
   # create the formulas for the mixed mediation term and for the regular outcome
@@ -754,6 +757,9 @@ setMethod("estimateEffectsLinear", "ImputationPipeline", function(object, a_prim
   model_mixed <- glm(formula=formula_mixed, family=gaussian, data=dataset, weights=weights_stand)
   # fit a linear logistic regression for the outcome given treatments using the MSM weights
   model_reg <- glm(formula=formula_reg, family=binomial, data=dataset, weights=weights_stand)
+  # print the estimated model
+  print("estimated reweighted regression coefficients")
+  print(summary(model_reg))
 
   # get copies of the dataset where we intervene on the treatment variables to the prime
   # and non-prime values

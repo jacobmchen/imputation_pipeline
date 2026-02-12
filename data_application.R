@@ -12,7 +12,7 @@ set.seed(0)
 # read the unscaled datasets
 primary_data <- read.csv("primary_data_final.csv")
 print(paste("primary data size:", nrow(primary_data)))
-mediation_data <- read.csv("mediation_data_final.csv")
+mediation_data <- read.csv("mediation_data_final_original.csv")
 print(paste("mediation data size:", nrow(mediation_data)))
 
 # define the variable dictionary
@@ -39,16 +39,16 @@ pipeline <- NewImputationPipeline(primary_data, mediation_data, variable_diction
 pipeline <- standardizeData(pipeline, to_exclude)
 
 # learn the mediation densities and update the object
-pipeline <- learnMediationDensities(pipeline, read_from_rds, "07172025")
+pipeline <- learnMediationDensities(pipeline, read_from_rds, "02112026")
 
 # impute M values for the primary dataset, set the seed to be 0
 pipeline <- imputeMediators(pipeline, 0)
 
 # learn the treatment densities and update the object
-pipeline <- learnTreatmentDensities(pipeline, read_from_rds, "07172025")
+pipeline <- learnTreatmentDensities(pipeline, read_from_rds, "02112026")
 
 # learn the marginal treatment densities and update the object
-pipeline <- learnMarginalTreatmentDensities(pipeline, read_from_rds, "07172025")
+pipeline <- learnMarginalTreatmentDensities(pipeline, read_from_rds, "02112026")
 
 # define the interventional values that we're interested in
 a_prime_vals <- c(0.5, 5)

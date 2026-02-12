@@ -62,3 +62,6 @@ Intermediate csv files and the data they contain are detailed here:
 1. ``raw_data_aki.csv``: urinary creatinine data and biomarker data along with standardized KIM-1 and NGAL values subsetted to patients that experience AKI 48 hours post surgery (increase of serum creatinine > 0.3 mg/dL).
 2. ``standardized_KIM1_NGAL.csv``: standardized KIM-1 at T1 minus T0 and standardized NGAL at T1 minus T0 for every patient
 3. ``stand_delta_KIM1_NGAL_AKI.csv``: same as above except subsetted to patients with AKI 48 hours post surgery
+
+2026-02-11
+We computed mean and standard deviations for change in standardized KIM-1 and NGAL at 4 time points (T1, T2, T3, T4) compared to baseline. When we inspected the histogram of the distribution, there were outliers that may be moving the sample mean and making the sample standard deviation large. Thus, we are interested in the median and interquartile ranges for change in standardized KIM-1 and NGAL at each of the 4 time points compared to baseline.
