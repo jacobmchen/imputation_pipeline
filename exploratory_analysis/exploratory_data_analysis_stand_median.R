@@ -36,17 +36,16 @@ make_plot <- function(vec1, vec2, vec3, vec4, vec5, vec6, vec7, vec8, title, fil
 }
 
 # read the raw creatinine data
-creatinine_data <- read_excel("../../../../KDIGO-AKI.xlsx")
+creatinine_data <- read_csv("serum_creat_AKI.csv")
 
-# subset to patients that experienced AKI and look only at
-# change in creatinine 48 hours post-surgery
+# subset to patients that experienced AKI
 creatinine_data_aki_yes <- creatinine_data %>%
-  filter(KDIGO_AKI_48hrs == "YES") %>%
-  select(PID, `48hrs_delCr`)
+  filter(AKI_delta == 1) %>%
+  select(PID, AKI_delta)
 
 creatinine_data_aki_no <- creatinine_data %>%
-  filter(KDIGO_AKI_48hrs == "NO") %>%
-  select(PID, `48hrs_delCr`)
+  filter(AKI_delta == 0) %>%
+  select(PID, AKI_delta)
 
 # read the mediation data
 mediation_data <- read.csv("standardized_KIM1_NGAL.csv")

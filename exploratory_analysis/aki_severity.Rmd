@@ -1,0 +1,50 @@
+2026-02-17
+This file accomplishes the following
+1. Read the serum creatinine data.
+2. Compute the number of patients that experience AKI at
+varying severities.
+3. Describe the number of patients that experience AKI
+at these varying severities.
+
+```{r}
+# load package for manipulating tibbles
+library(tidyverse)
+# load package for reading xlsx files
+library(readxl)
+```
+
+```{r}
+# read the serum creatinine data
+serum_creatinine_data <- read_excel("../../../../KDIGO-AKI.xlsx")
+```
+
+```{r}
+cleaned_creatinine_data <- serum_creatinine_data %>%
+  select(-c(`...1`, anes_time, ICU_Arrival)) %>%
+  mutate(AKI_delta = ifelse((Max_48hr_Cr - Pre_Anes_Cr > 0.25) | (Max_72hr_Cr - Pre_Anes_Cr > 0.25), 1, 0)) %>%
+  mutate(AKI_1 = ifelse((Max_48hr_Cr >= 1.5 * Pre_Anes_Cr & Max_48hr_Cr <= 1.99 * Pre_Anes_Cr) |
+                        (Max_72hr_Cr >= 1.5 * Pre_Anes_Cr & Max_72hr_Cr <= 1.99 * Pre_Anes_Cr) , 1, 0)) %>%
+  mutate(AKI_2 = ifelse((Max_48hr_Cr >= 2 * Pre_Anes_Cr & Max_48hr_Cr <= 2.99 * Pre_Anes_Cr) |
+                        (Max_72hr_Cr >= 2 * Pre_Anes_Cr & Max_72hr_Cr <= 2.99 * Pre_Anes_Cr) , 1, 0)) %>%
+  mutate(AKI_3 = ifelse((Max_48hr_Cr >= 3 * Pre_Anes_Cr & Max_48hr_Cr <= 3.99 * Pre_Anes_Cr) |
+                        (Max_72hr_Cr >= 3 * Pre_Anes_Cr & Max_72hr_Cr <= 3.99 * Pre_Anes_Cr) , 1, 0)) %>%
+  mutate(AKI_4 = ifelse((Max_48hr_Cr >= 4 * Pre_Anes_Cr) |
+                        (Max_72hr_Cr >= 4 * Pre_Anes_Cr) , 1, 0))
+
+print(sum(cleaned_creatinine_data$AKI_delta))
+print(sum(cleaned_creatinine_data$AKI_1))
+print(sum(cleaned_creatinine_data$AKI_2))
+print(sum(cleaned_creatinine_data$AKI_3))
+print(sum(cleaned_creatinine_data$AKI_4))
+head(cleaned_creatinine_data)
+```
+
+```{r}
+AKI_data <- cleaned_creatinine_data %>% filter(AKI_delta == 1)
+
+AKI_data
+```
+
+```{r}
+write.csv(cleaned_creatinine_data, "serum_creat_AKI.csv", row.names=FALSE)
+```

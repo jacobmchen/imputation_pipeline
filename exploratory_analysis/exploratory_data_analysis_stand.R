@@ -9,8 +9,6 @@
 
 # load package for manipulating tibbles
 library(tidyverse)
-# load package for reading xlsx files
-library(readxl)
 
 # define a function that computes a confidence interval
 compute_conf_interval_t <- function(vec) {
@@ -26,70 +24,35 @@ compute_conf_interval_t <- function(vec) {
 }
 
 # read the raw creatinine data
-creatinine_data <- read_excel("../../../../KDIGO-AKI.xlsx")
+creatinine_data <- read_csv("serum_creat_AKI.csv")
 
-# subset to patients that experienced AKI and look only at
-# change in creatinine 48 hours post-surgery
+# subset to patients that experienced AKI
 creatinine_data_aki_yes <- creatinine_data %>%
-  filter(KDIGO_AKI_48hrs == "YES") %>%
-  select(PID, `48hrs_delCr`)
+  filter(AKI_delta == 1) %>%
+  select(PID, AKI_delta)
 
 creatinine_data_aki_no <- creatinine_data %>%
-  filter(KDIGO_AKI_48hrs == "NO") %>%
-  select(PID, `48hrs_delCr`)
-
-# print("sample mean change in creatinine")
-# print(mean(creatinine_data$`48hrs_delCr`))
-# print("sample standard deviation change in creatinine")
-# print(sd(creatinine_data$`48hrs_delCr`))
-
-# # plot a histogram of the change in creatinine data
-# png("plots/creatinine.png")
-# hist(creatinine_data$`48hrs_delCr`, main="Change in Creatinine 48 Hours After Surgery\nAmong AKI Patients",
-#      xlab="Change in Creatinine 48 Hours After Surgery Compared to Baseline")
+  filter(AKI_delta == 0) %>%
+  select(PID, AKI_delta)
 
 # read the mediation data
 mediation_data <- read.csv("standardized_KIM1_NGAL.csv")
 
-# subset to patients that experienced AKI and look only at
-# change in NGAL and KIM-1
+# subset to patients that experienced AKI and look only at KIM-1
 filtered_data <- mediation_data %>%
-    select(PID, delta_KIM1_stand, delta_KIM1_stand_T2, delta_KIM1_stand_T3, delta_KIM1_stand_T4, delta_NGAL_stand)
-
-# save change in KIM-1 and NGAL as histograms for the whole cohort
-png("plots/kim1_stand_whole.png")
-hist(filtered_data$delta_KIM1_stand, main="Change in Standardized KIM-1 at X-Clamp Off",
-     xlab="Change in KIM-1 at X-Clamp Off Compared to Baseline")
-png("plots/ngal_stand_whole.png")
-hist(filtered_data$delta_NGAL_stand, main="Change in Standardized NGAL at X-Clamp Off",
-     xlab="Change in NGAL at X-Clamp Off Compared to Baseline")
-
-# print the average delta_KIM-1 and delta_NGAL for the whole cohort
-print("sample mean KIM-1 change for whole cohort")
-print(mean(filtered_data$delta_KIM1_stand, na.rm=TRUE))
-print("sample standard deviation KIM-1 for whole cohort")
-print(sd(filtered_data$delta_KIM1_stand, na.rm=TRUE))
-print("sample mean NGAL change for whole cohort")
-print(mean(filtered_data$delta_NGAL_stand, na.rm=TRUE))
-print("sample standard deviation NGAL change for whole cohort")
-print(sd(filtered_data$delta_NGAL_stand, na.rm=TRUE))
+    select(PID, delta_KIM1_stand, delta_KIM1_stand_T2, delta_KIM1_stand_T3, delta_KIM1_stand_T4)
 
 # merge the patients from the biomarkers data to make sure
 # that the patients experiencing AKI are the same in both datasets
 aki_yes_data <- filtered_data %>%
   filter(PID %in% creatinine_data_aki_yes$PID)
 
-# print(aki_yes_data)
-
-# # save change in KIM-1 and NGAL as histograms
-# png("plots/kim1_stand.png")
-# hist(filtered_data$delta_KIM1_stand, main="Change in Standardized KIM-1 at X-Clamp Off Among\nAKI Patients",
-#      xlab="Change in KIM-1 at X-Clamp Off Compared to Baseline")
-# png("plots/ngal_stand.png")
-# hist(filtered_data$delta_NGAL_stand, main="Change in Standardized NGAL at X-Clamp Off Among\nAKI Patients",
-#      xlab="Change in NGAL at X-Clamp Off Compared to Baseline")
-
 print("cohort yes AKI")
+
+# save change in KIM-1 as histograms
+png("plots/kim1_stand_T1.png")
+hist(aki_yes_data$delta_KIM1_stand, main="Change in Standardized KIM-1 at T1 Among\nAKI Patients",
+     xlab="Change in KIM-1 at T1 Compared to Baseline")
 
 png("plots/kim1_stand_T2.png")
 hist(aki_yes_data$delta_KIM1_stand_T2, main="Change in Standardized KIM-1 at T2 Among\nAKI Patients",
@@ -131,36 +94,17 @@ print("sample standard deviation KIM-1 T4-T0")
 print(sd(aki_yes_data$delta_KIM1_stand_T4, na.rm=TRUE))
 print("confidence intervals")
 print(compute_conf_interval_t(aki_yes_data$delta_KIM1_stand_T4))
-print("sample mean NGAL change")
-print(mean(filtered_data$delta_NGAL_stand, na.rm=TRUE))
-print("sample standard deviation NGAL change")
-print(sd(filtered_data$delta_NGAL_stand, na.rm=TRUE))
 
 # now for cohort of patients that did not experience AKI
 aki_no_data <- filtered_data %>%
   filter(PID %in% creatinine_data_aki_no$PID)
 
-# print(aki_no_data)
-
-# # save change in KIM-1 and NGAL as histograms
-# png("plots/kim1_stand.png")
-# hist(filtered_data$delta_KIM1_stand, main="Change in Standardized KIM-1 at X-Clamp Off Among\nAKI Patients",
-#      xlab="Change in KIM-1 at X-Clamp Off Compared to Baseline")
-# png("plots/ngal_stand.png")
-# hist(filtered_data$delta_NGAL_stand, main="Change in Standardized NGAL at X-Clamp Off Among\nAKI Patients",
-#      xlab="Change in NGAL at X-Clamp Off Compared to Baseline")
-
 print("")
 print("cohort of no AKI")
 
-# print(t.test(aki_yes_data$delta_KIM1_stand, aki_no_data$delta_KIM1_stand, alternative="greater"))
-# print(t.test(aki_yes_data$delta_KIM1_stand_T2, aki_no_data$delta_KIM1_stand_T2, alternative="greater"))
-# print(t.test(aki_yes_data$delta_KIM1_stand_T3, aki_no_data$delta_KIM1_stand_T3, alternative="greater"))
-# print(t.test(aki_yes_data$delta_KIM1_stand_T4, aki_no_data$delta_KIM1_stand_T4, alternative="greater"))
-
-png("plots/kim1_stand_aki_no.png")
-hist(aki_no_data$delta_KIM1_stand, main="Change in Standardized KIM-1 at X-Clamp Off Among\nNo AKI Patients",
-     xlab="Change in KIM-1 at X-Clamp Off Compared to Baseline")
+png("plots/kim1_stand_aki_no_T1.png")
+hist(aki_no_data$delta_KIM1_stand, main="Change in Standardized KIM-1 at T1 Among\nNo AKI Patients",
+     xlab="Change in KIM-1 at T1 Compared to Baseline")
 
 png("plots/kim1_stand_aki_no_T2.png")
 hist(aki_no_data$delta_KIM1_stand_T2, main="Change in Standardized KIM-1 at T2 Among\nNo AKI Patients",
@@ -202,5 +146,10 @@ print("sample standard deviation KIM-1 T4-T0")
 print(sd(aki_no_data$delta_KIM1_stand_T4, na.rm=TRUE))
 print("confidence intervals")
 print(compute_conf_interval_t(aki_no_data$delta_KIM1_stand_T4))
+
+# print(t.test(aki_yes_data$delta_KIM1_stand, aki_no_data$delta_KIM1_stand, alternative="greater"))
+# print(t.test(aki_yes_data$delta_KIM1_stand_T2, aki_no_data$delta_KIM1_stand_T2, alternative="greater"))
+# print(t.test(aki_yes_data$delta_KIM1_stand_T3, aki_no_data$delta_KIM1_stand_T3, alternative="greater"))
+# print(t.test(aki_yes_data$delta_KIM1_stand_T4, aki_no_data$delta_KIM1_stand_T4, alternative="greater"))
 
 dev.off()

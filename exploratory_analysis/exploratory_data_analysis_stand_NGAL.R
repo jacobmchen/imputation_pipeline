@@ -24,17 +24,16 @@ compute_conf_interval_t <- function(vec) {
 }
 
 # read the raw creatinine data
-creatinine_data <- read_excel("../../../../KDIGO-AKI.xlsx")
+creatinine_data <- read_csv("serum_creat_AKI.csv")
 
-# subset to patients that experienced AKI and look only at
-# change in creatinine 48 hours post-surgery
+# subset to patients that experienced AKI
 creatinine_data_aki_yes <- creatinine_data %>%
-  filter(KDIGO_AKI_48hrs == "YES") %>%
-  select(PID, `48hrs_delCr`)
+  filter(AKI_delta == 1) %>%
+  select(PID, AKI_delta)
 
 creatinine_data_aki_no <- creatinine_data %>%
-  filter(KDIGO_AKI_48hrs == "NO") %>%
-  select(PID, `48hrs_delCr`)
+  filter(AKI_delta == 0) %>%
+  select(PID, AKI_delta)
 
 # read the mediation data
 mediation_data <- read.csv("standardized_KIM1_NGAL.csv")
@@ -103,11 +102,6 @@ aki_no_data <- filtered_data %>%
 print("")
 print("cohort of no AKI")
 
-# print(t.test(aki_yes_data$delta_NGAL_stand, aki_no_data$delta_NGAL_stand, alternative="greater"))
-# print(t.test(aki_yes_data$delta_NGAL_stand_T2, aki_no_data$delta_NGAL_stand_T2, alternative="greater"))
-# print(t.test(aki_yes_data$delta_NGAL_stand_T3, aki_no_data$delta_NGAL_stand_T3, alternative="greater"))
-# print(t.test(aki_yes_data$delta_NGAL_stand_T4, aki_no_data$delta_NGAL_stand_T4, alternative="greater"))
-
 png("plots/NGAL_stand_aki_no_T1.png")
 hist(aki_no_data$delta_NGAL_stand, main="Change in Standardized NGAL at X-Clamp Off Among\nNo AKI Patients",
      xlab="Change in NGAL at X-Clamp Off Compared to Baseline")
@@ -152,5 +146,10 @@ print("sample standard deviation NGAL T4-T0")
 print(sd(aki_no_data$delta_NGAL_stand_T4, na.rm=TRUE))
 print("confidence intervals")
 print(compute_conf_interval_t(aki_no_data$delta_NGAL_stand_T4))
+
+print(t.test(aki_yes_data$delta_NGAL_stand, aki_no_data$delta_NGAL_stand, alternative="greater"))
+print(t.test(aki_yes_data$delta_NGAL_stand_T2, aki_no_data$delta_NGAL_stand_T2, alternative="greater"))
+print(t.test(aki_yes_data$delta_NGAL_stand_T3, aki_no_data$delta_NGAL_stand_T3, alternative="greater"))
+print(t.test(aki_yes_data$delta_NGAL_stand_T4, aki_no_data$delta_NGAL_stand_T4, alternative="greater"))
 
 dev.off()
