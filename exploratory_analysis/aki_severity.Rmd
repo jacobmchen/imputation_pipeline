@@ -1,4 +1,4 @@
-2026-02-17
+2026-02-18
 This file accomplishes the following
 1. Read the serum creatinine data.
 2. Compute the number of patients that experience AKI at
@@ -40,9 +40,23 @@ head(cleaned_creatinine_data)
 ```
 
 ```{r}
+# check whether criterion 1 and 2 capture the same group of patients
 AKI_data <- cleaned_creatinine_data %>% filter(AKI_delta == 1)
 
-AKI_data
+AKI1_data <- cleaned_creatinine_data %>% filter(AKI_1 == 1)
+
+print(AKI_data$PID)
+
+print(AKI1_data$PID)
+
+# iterate through each PID in the AKI_1 criterion and check if each
+# is in the list of PIDs for the AKI_delta criterion
+for (id in AKI1_data$PID) {
+  if (!(id %in% AKI_data$PID)) {
+    print(id)
+  }
+}
+print("finish")
 ```
 
 ```{r}

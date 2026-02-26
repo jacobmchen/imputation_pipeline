@@ -90,3 +90,19 @@ The csv file containing which patients fulfill the criteria above is ``serum_cre
 
 Updated the files ``exploratory_data_analysis_stand.R`` and ``exploratory_data_analysis_stand_NGAL.R`` to use criterion 1 above to separate AKI and non-AKI patients.
 Updated the files ``exploratory_data_analysis_stand_median.R`` and ``exploratory_data_analysis_stand_NGAL_median.R`` to use criterion 1 above to separate AKI and non-AKI patients.
+
+2026-02-25
+
+Three items on this update:
+1. Update the criterion for AKI to either fulfilling 1 or 2 in the 5 criteria above in the updates from 2026-02-18. The previous implementation uses only criterion 1.
+- We were able to verify that each patient in criterion 2 above appears in criterion 1. In other words there is complete overlap between the two groups.
+2. Plot the trends of change in standardized NGAL for T1, T2, and T3 for each patient in the AKI and no-AKI groups.
+- Creating these plots is done in the file ``exploratory_data_analysis_stand_NGAL_lineplots.R``. It seems that for the yes AKI group most patients experience an increase at T3 or an increase at T2 that is sustained at T3. For the no AKI group, most patients are level from T1 to T3. Some experience an increase at T2 that decreases at T3. Some experience an increase at T3 but most do decrease back down.
+3. Re-run the full AKI imputation pipeline using standardized NGAL only at T3. The previous implementation uses all 4 biomarkers at un-standardized values, which may lead to bias.
+- I first need to create a version of the mediation data with standardized NGAL at T3. The file that executes this is contained in ``attach_stand_NGAL.Rmd``. We create a file ``mediation_data_final_NGAL_stand_T3.csv`` that is suitable to be used directly in the imputation pipeline.
+- Run the file ``data_application_stand_NGAL.R`` to execute the imputation pipeline with standardized NGAL at T3 as the mediator variable.
+
+2026-02-26
+After item 3 in the above updates, the direct effect accounts for pretty much the entirety of the total effect. This was surprising. However, upon further thought perhaps it makes sense because NGAL and serum creatinine are both proxies of kidney function. Hence, intervening on NGAL should not have an effect on AKI (AKI is based on serum creatinine) since there is no directed edge from NGAL to AKI. Then, there should be no indirect effect at all.
+
+To make sure that this is reasonable, I computed the effect of oxygen delivery on standardized NGAL. I updated ``imputation_pipeline.R`` slightly to do this calculation using BART and the g-formula estimator. The results suggest a positive causal effect. Note that we only measure standardized NGAL for 140/902 patients in the dataset, so we are limited by sample size.

@@ -37,7 +37,8 @@ setClass("ImputationPipeline",
                     Y_p="ANY", # a vector storing the pseudo-outcome
                     total_effect="vector", # a number to store the estimate of the mediation term
                     direct_effect="vector", # a number to store the estimate of intervening on a
-                    indirect_effect="vector" # a number to store the estimate of intervening on a'
+                    indirect_effect="vector", # a number to store the estimate of intervening on a
+                    A_M_effect="vector" # a number to store the estimate of the effect of A on M
                     ))
 
 # create a constructor
@@ -53,7 +54,8 @@ NewImputationPipeline <- function(primary_data, mediation_data, variable_diction
                 Y_p=NULL,
                 total_effect=c(0),
                 direct_effect=c(0),
-                indirect_effect=c(0))
+                indirect_effect=c(0),
+                A_M_effect=c(0))
 }
 
 # define the show method for the ImputationPipeline class to define how it should
@@ -317,6 +319,9 @@ setMethod("standardizeData", "ImputationPipeline", function(object, to_exclude) 
     # skip the excluded variable
     if (cur_M %in% to_exclude) next
 
+    print("standard deviation of stand NGAL")
+    print(sd(object@mediation_data[[cur_M]]))
+    
     # only the mediation data has mediation variables, so directly scale it
     # by the observed standard deviation
     object@mediation_data[[cur_M]] <- object@mediation_data[[cur_M]] / sd(object@mediation_data[[cur_M]])
@@ -859,16 +864,35 @@ setMethod("estimateEffects", "ImputationPipeline", function(object, a_prime_vals
                                  data_a_prime,
                                  q=0.025,
                                  ndraws=1000)
+  
+  # compute causal effects when M is the outcome variable
+  bart_a_prime_M <- compute_po_Y_binary(object@combined_imputed_data,
+                                      object@variable_dictionary[["M"]][1],
+                                      adjustment_set,
+                                      rep(1, row_n), # this makes sure that the weights passed in are all 1's
+                                      data_a_prime,
+                                      q=0.025,
+                                      ndraws=1000)
+  
+  bart_a_M <- compute_po_Y_binary(object@combined_imputed_data,
+                                object@variable_dictionary[["M"]][1],
+                                adjustment_set,
+                                rep(1, row_n), # this makes sure that the weights passed in are all 1's
+                                data_a,
+                                q=0.025,
+                                ndraws=1000)
 
   # compute differences as the estimates for the effects of interest
   total_effect <- bart_a_prime - bart_a
   indirect_effect <- bart_a_prime - bart_mixed
   direct_effect <- bart_mixed - bart_a
+  A_M_effect <- bart_a_prime_M - bart_a_M
 
   # compute the means and quantiles as the credible intervals
   object@total_effect <- c(mean(total_effect), as.numeric(quantile(total_effect, c(0.025, 0.975))))
   object@indirect_effect <- c(mean(indirect_effect), as.numeric(quantile(indirect_effect, c(0.025, 0.975))))
   object@direct_effect <- c(mean(direct_effect), as.numeric(quantile(direct_effect, c(0.025, 0.975))))
+  object@A_M_effect <- c(mean(A_M_effect), as.numeric(quantile(A_M_effect, c(0.025, 0.975))))
 
   return(object)
 })
