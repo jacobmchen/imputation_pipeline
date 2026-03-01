@@ -103,6 +103,14 @@ Three items on this update:
 - Run the file ``data_application_stand_NGAL.R`` to execute the imputation pipeline with standardized NGAL at T3 as the mediator variable.
 
 2026-02-26
+
 After item 3 in the above updates, the direct effect accounts for pretty much the entirety of the total effect. This was surprising. However, upon further thought perhaps it makes sense because NGAL and serum creatinine are both proxies of kidney function. Hence, intervening on NGAL should not have an effect on AKI (AKI is based on serum creatinine) since there is no directed edge from NGAL to AKI. Then, there should be no indirect effect at all.
 
 To make sure that this is reasonable, I computed the effect of oxygen delivery on standardized NGAL. I updated ``imputation_pipeline.R`` slightly to do this calculation using BART and the g-formula estimator. The results suggest a positive causal effect. Note that we only measure standardized NGAL for 140/902 patients in the dataset, so we are limited by sample size.
+
+2026-03-01
+
+Repeat items 2 and 3 from the updates for 2026-02-25. We are interested in inspecting the changes for standardized NGAL at T4.
+- When implementing item 2, standardized NGAL at T4 has very low values compared to standardized NGAL at T2 and T3. This makes it very hard to compare values at T4 since the scale makes it such that T4 values are all bunched up near 0. I made a scatter plot with only T4 values to make it easier to compare. T4 values look pretty much the same between AKI and no-AKI groups except the AKI group has one big outlier and the no-AKI group has a couple small outliers.
+- Updated ``attach_stand_NGAL.Rmd`` to also create a file ``mediation_data_final_NGAL_stand_T3.csv`` that is suitable to be used directly in the imputation pipeline.
+- ``data_application_stand_NGAL_T4.R`` executes the imputation pipeline using standardized NGAL at T4 as the mediator variable. This file is copied from ``data_application_stand_NGAL.R`` with minimal changes, but we make a separate file so that it is possible to run the two analyses without having to go into the files and change things. The results when using T4 data are pretty much the same as the results when using T3 data.

@@ -29,9 +29,12 @@ mediation_data <- read.csv("standardized_KIM1_NGAL.csv")
 
 # subset to patients that experienced AKI and look only at
 # change in NGAL and KIM-1
+# filtered_data <- mediation_data %>%
+#     select(PID, delta_NGAL_stand, delta_NGAL_stand_T2, delta_NGAL_stand_T3, delta_NGAL_stand_T4) %>%
+#     rename(T1=delta_NGAL_stand, T2=delta_NGAL_stand_T2, T3=delta_NGAL_stand_T3, T4=delta_NGAL_stand_T4)
 filtered_data <- mediation_data %>%
-    select(PID, delta_NGAL_stand, delta_NGAL_stand_T2, delta_NGAL_stand_T3) %>%
-    rename(T1=delta_NGAL_stand, T2=delta_NGAL_stand_T2, T3=delta_NGAL_stand_T3)
+  select(PID, delta_NGAL_stand_T4) %>%
+  rename(T4=delta_NGAL_stand_T4)
 
 # merge the patients from the biomarkers data to make sure
 # that the patients experiencing AKI are the same in both datasets
@@ -49,10 +52,10 @@ aki_yes_data_long <- pivot_longer(
 )
 
 # factor the time labels so that R knows what order they are supposed to be in
-aki_yes_data_long$time <- factor(aki_yes_data_long$time, levels=c("T1", "T2", "T3"))
+aki_yes_data_long$time <- factor(aki_yes_data_long$time, levels=c("T4"))
 
 # make the line plot by grouping with PID and coloring points based on PID
-png("plots/NGAL_stand_lineplot_akiyes.png")
+png("plots/NGAL_stand_lineplot_akiyes_T4.png")
 ggplot(aki_yes_data_long, aes(x=time, y=NGAL_stand, group=PID, color=PID)) +
   geom_line(size=1) +
   geom_point(size=3) +
@@ -73,9 +76,9 @@ aki_no_data_long <- pivot_longer(
   values_to = "NGAL_stand"
 )
 
-aki_no_data_long$time <- factor(aki_no_data_long$time, levels=c("T1", "T2", "T3"))
+aki_no_data_long$time <- factor(aki_no_data_long$time, levels=c("T4"))
 
-png("plots/NGAL_stand_lineplot_akino.png")
+png("plots/NGAL_stand_lineplot_akino_T4.png")
 ggplot(aki_no_data_long, aes(x=time, y=NGAL_stand, group=PID, color=PID)) +
   geom_line(size=1) +
   geom_point(size=3) +

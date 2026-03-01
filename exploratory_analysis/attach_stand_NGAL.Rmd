@@ -15,6 +15,9 @@ library(readxl)
 stand_NGAL_T3 <- read.csv("standardized_KIM1_NGAL.csv") %>%
   select(c(PID, delta_NGAL_stand_T3))
 
+stand_NGAL_T4 <- read.csv("standardized_KIM1_NGAL.csv") %>%
+  select(c(PID, delta_NGAL_stand_T4))
+
 mediation_data <- read.csv("../analysis_data_11192025.csv")
 
 merged_data <- merge(mediation_data, stand_NGAL_T3, by="PID", all.x=TRUE) %>%
@@ -25,10 +28,19 @@ merged_data <- merge(mediation_data, stand_NGAL_T3, by="PID", all.x=TRUE) %>%
   rename(hct = hgb) %>%
   drop_na()
 
-head(merged_data)
+merged_data_T4 <- merge(mediation_data, stand_NGAL_T4, by="PID", all.x=TRUE) %>%
+  select(c(creatlst, age, gender, bmi, hypertn, dm, copd, chf, prior_mi, hgb, hdef,
+           statin, acearb, betablocker, rbc_transfusion, nadirDO2, xclamp_duration, 
+          delta_NGAL_stand_T4, aki)) %>%
+  mutate(hgb = 3*hgb) %>%
+  rename(hct = hgb) %>%
+  drop_na()
+
+head(merged_data_T4)
 ```
 
 ```{r}
 # write the csv
 write.csv(merged_data, "../mediation_data_final_NGAL_stand_T3.csv", row.names=FALSE)
+write.csv(merged_data_T4, "../mediation_data_final_NGAL_stand_T4.csv", row.names=FALSE)
 ```
