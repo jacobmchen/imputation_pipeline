@@ -36,7 +36,7 @@ creatinine_data_aki_no <- creatinine_data %>%
   select(PID, AKI_delta)
 
 # read the mediation data
-mediation_data <- read.csv("standardized_KIM1_NGAL.csv")
+mediation_data <- read.csv("standardized_biomarker_data.csv")
 
 # subset to patients that experienced AKI and look only at KIM-1
 filtered_data <- mediation_data %>%
@@ -147,9 +147,9 @@ print(sd(aki_no_data$delta_KIM1_stand_T4, na.rm=TRUE))
 print("confidence intervals")
 print(compute_conf_interval_t(aki_no_data$delta_KIM1_stand_T4))
 
-# print(t.test(aki_yes_data$delta_KIM1_stand, aki_no_data$delta_KIM1_stand, alternative="greater"))
-# print(t.test(aki_yes_data$delta_KIM1_stand_T2, aki_no_data$delta_KIM1_stand_T2, alternative="greater"))
-# print(t.test(aki_yes_data$delta_KIM1_stand_T3, aki_no_data$delta_KIM1_stand_T3, alternative="greater"))
-# print(t.test(aki_yes_data$delta_KIM1_stand_T4, aki_no_data$delta_KIM1_stand_T4, alternative="greater"))
+print(t.test(aki_yes_data$delta_KIM1_stand, aki_no_data$delta_KIM1_stand, alternative="greater"))
+print(t.test(aki_yes_data$delta_KIM1_stand_T2, aki_no_data$delta_KIM1_stand_T2, alternative="greater"))
+print(t.test(aki_yes_data$delta_KIM1_stand_T3, aki_no_data$delta_KIM1_stand_T3, alternative="greater"))
+print(t.test(aki_yes_data$delta_KIM1_stand_T4, aki_no_data$delta_KIM1_stand_T4, alternative="greater"))
 
 dev.off()

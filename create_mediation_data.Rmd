@@ -1,0 +1,72 @@
+---
+title: "create mediation data"
+output: pdf_document
+date: "2026-04-27"
+---
+
+Read the the raw analysis data analysis_data_07162025 and create mediation data
+with just standardized KIM-1, MCP-1, and YKL-40.
+
+```{r setup}
+# load package for manipulating tibbles
+library(tidyverse)
+```
+
+```{r}
+# read the analysis data
+analysis_data <- read.csv("analysis_data_07162025.csv") %>%
+  select(c(PID, creatlst, age, gender, bmi, hypertn, dm,
+           copd, chf, prior_mi, hgb, hdef, statin, acearb, betablocker,
+           rbc_transfusion, xclamp_duration, nadirDO2, aki)) %>%
+  mutate(hct = hgb*3) %>%
+  select(-hgb)
+
+head(analysis_data)
+```
+
+```{r}
+# read biomarker data
+biomarker_data <- read.csv("exploratory_analysis/standardized_biomarker_data.csv")
+
+head(biomarker_data)
+```
+
+```{r}
+# merge the analysis data and the biomarker data
+merged_data <- merge(analysis_data, biomarker_data, by="PID")
+
+head(merged_data)
+```
+
+```{r}
+# create the dataset with only KIM1
+kim1_data <- merged_data %>%
+  select(c(creatlst, age, gender, bmi, hypertn, dm,
+           copd, chf, prior_mi, hct, hdef, statin, acearb, betablocker,
+           rbc_transfusion, xclamp_duration, nadirDO2, delta_KIM1_stand_T3, aki)) %>%
+  drop_na()
+
+write.csv(kim1_data, "mediation_data_final_KIM1_stand_T3.csv", row.names=FALSE)
+```
+
+```{r}
+# create the dataset with only MCP1
+mcp1_data <- merged_data %>%
+  select(c(creatlst, age, gender, bmi, hypertn, dm,
+           copd, chf, prior_mi, hct, hdef, statin, acearb, betablocker,
+           rbc_transfusion, xclamp_duration, nadirDO2, delta_MCP1_stand_T3, aki)) %>%
+  drop_na()
+
+write.csv(mcp1_data, "mediation_data_final_MCP1_stand_T3.csv", row.names=FALSE)
+```
+
+```{r}
+# create the dataset with only YKL40
+ykl40_data <- merged_data %>%
+  select(c(creatlst, age, gender, bmi, hypertn, dm,
+           copd, chf, prior_mi, hct, hdef, statin, acearb, betablocker,
+           rbc_transfusion, xclamp_duration, nadirDO2, delta_YKL40_stand_T3, aki)) %>%
+  drop_na()
+
+write.csv(ykl40_data, "mediation_data_final_YKL40_stand_T3.csv", row.names=FALSE)
+```
