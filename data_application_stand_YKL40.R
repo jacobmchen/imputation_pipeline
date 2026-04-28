@@ -30,7 +30,7 @@ to_exclude <- c("gender", "hypertn", "dm", "copd", "chf", "prior_mi", "statin",
                 "acearb", "betablocker")
 
 # define whether we should read model data from RDS data
-read_from_rds <- FALSE
+read_from_rds <- TRUE
 
 # create the pipeline object
 pipeline <- NewImputationPipeline(primary_data, mediation_data, variable_dictionary)
