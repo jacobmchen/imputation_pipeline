@@ -278,6 +278,9 @@ setMethod("standardizeData", "ImputationPipeline", function(object, to_exclude) 
     # datasets
     scale <- sd(combined_cur_A)
     print(paste("sample standard deviation of", cur_A, scale))
+    print(paste("mean of", cur_A, mean(combined_cur_A)))
+    print(paste("max of", cur_A, max(combined_cur_A)))
+    print(paste("min of", cur_A, min(combined_cur_A)))
 
     # scale the current A variable with the combined standard deviation
     object@primary_data[[cur_A]] <- object@primary_data[[cur_A]] / scale

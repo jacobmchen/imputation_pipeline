@@ -114,3 +114,10 @@ Repeat items 2 and 3 from the updates for 2026-02-25. We are interested in inspe
 - When implementing item 2, standardized NGAL at T4 has very low values compared to standardized NGAL at T2 and T3. This makes it very hard to compare values at T4 since the scale makes it such that T4 values are all bunched up near 0. I made a scatter plot with only T4 values to make it easier to compare. T4 values look pretty much the same between AKI and no-AKI groups except the AKI group has one big outlier and the no-AKI group has a couple small outliers.
 - Updated ``attach_stand_NGAL.Rmd`` to also create a file ``mediation_data_final_NGAL_stand_T3.csv`` that is suitable to be used directly in the imputation pipeline.
 - ``data_application_stand_NGAL_T4.R`` executes the imputation pipeline using standardized NGAL at T4 as the mediator variable. This file is copied from ``data_application_stand_NGAL.R`` with minimal changes, but we make a separate file so that it is possible to run the two analyses without having to go into the files and change things. The results when using T4 data are pretty much the same as the results when using T3 data.
+
+2026-04-27
+
+For completeness of the analysis with all 4 biomarkers, I implemented the following changes in this update.
+- In the exploratory analysis folder, I added files that analyze the biomarkers MCP-1 and YKL-40 for their means, medians, and a two sample t-test for differences in the standardized biomarkers between people that had AKI and people that did not have AKI.
+- I also added code that runs the whole imputation pipeline using change in standardized MCP-1 and YKL-40 at T3 as the mediating variable.
+- The analysis now goes beyond just using NGAL and makes sure that we are giving all 4 biomarkers a chance at yielding some signal regarding whether kidneys got hurt between cross-clamp on and arrival in the ICU.

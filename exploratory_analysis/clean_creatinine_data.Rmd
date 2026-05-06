@@ -38,12 +38,15 @@ head(merged_data)
 # compute the ratios of KIM-1 and NGAL over urinary creatinine
 merged_data <- merged_data %>%
   mutate(`KIM-1_stand` = `KIM-1` / urcrea) %>%
-  mutate(NGAL_stand = NGAL / urcrea)
+  mutate(NGAL_stand = NGAL / urcrea) %>%
+  mutate(`MCP-1_stand` = `MCP-1` / urcrea) %>%
+  mutate(`YKL-40_stand` = `YKL-40` / urcrea)
 
 head(merged_data)
 ```
 
 ```{r}
+# this code block is for something else, can skip
 aki_patient_data <- read.csv("stand_delta_KIM1_NGAL_AKI.csv")
 
 data_by_id <- merged_data %>%
@@ -68,13 +71,13 @@ pivoted_data <- merged_data %>%
   mutate(PID = as.double(substr(sample, 1, 4))) %>%
   mutate(collection_time = as.double(sub(".*T", "", sample))) %>%
   select(-sample) %>%
-  pivot_wider(names_from = collection_time, values_from = c(urcrea, `KIM-1`, `MCP-1`, NGAL, `YKL-40`, `KIM-1_stand`, `NGAL_stand`))
+  pivot_wider(names_from = collection_time, values_from = c(urcrea, `KIM-1`, `MCP-1`, NGAL, `YKL-40`, `KIM-1_stand`, `NGAL_stand`, `MCP-1_stand`, `YKL-40_stand`))
 
 head(pivoted_data)
 ```
 
 ```{r}
-# compute the difference between KIM-1 and NGAL at T1 and T0 to get
+# compute the difference between the four biomarkers at T1, T2, T3 and T0 to get
 # the change values that we are interested in
 cleaned_data <- pivoted_data %>%
   mutate(delta_KIM1_stand = `KIM-1_stand_1` - `KIM-1_stand_0`) %>%
@@ -85,10 +88,21 @@ cleaned_data <- pivoted_data %>%
   mutate(delta_NGAL_stand_T2 = NGAL_stand_2 - NGAL_stand_0) %>%
   mutate(delta_NGAL_stand_T3 = NGAL_stand_3 - NGAL_stand_0) %>%
   mutate(delta_NGAL_stand_T4 = NGAL_stand_4 - NGAL_stand_0) %>%
+  mutate(delta_MCP1_stand = `MCP-1_stand_1` - `MCP-1_stand_0`) %>%
+  mutate(delta_MCP1_stand_T2 = `MCP-1_stand_2` - `MCP-1_stand_0`) %>%
+  mutate(delta_MCP1_stand_T3 = `MCP-1_stand_3` - `MCP-1_stand_0`) %>%
+  mutate(delta_MCP1_stand_T4 = `MCP-1_stand_4` - `MCP-1_stand_0`) %>%
+  mutate(delta_YKL40_stand = `YKL-40_stand_1` - `YKL-40_stand_0`) %>%
+  mutate(delta_YKL40_stand_T2 = `YKL-40_stand_2` - `YKL-40_stand_0`) %>%
+  mutate(delta_YKL40_stand_T3 = `YKL-40_stand_3` - `YKL-40_stand_0`) %>%
+  mutate(delta_YKL40_stand_T4 = `YKL-40_stand_4` - `YKL-40_stand_0`) %>%
   select(c(PID, delta_KIM1_stand, delta_NGAL_stand, delta_KIM1_stand_T2,
            delta_KIM1_stand_T3,  delta_KIM1_stand_T4,
            delta_NGAL_stand_T2, delta_NGAL_stand_T3,
-           delta_NGAL_stand_T4))
+           delta_NGAL_stand_T4, delta_MCP1_stand, delta_MCP1_stand_T2,
+           delta_MCP1_stand_T3, delta_MCP1_stand_T4,
+           delta_YKL40_stand, delta_YKL40_stand_T2, delta_YKL40_stand_T3,
+           delta_YKL40_stand_T4))
 
 print(cleaned_data)
 ```
@@ -100,5 +114,5 @@ cleaned_data %>% filter(delta_KIM1_stand > 100)
 ```
 
 ```{r}
-write.csv(cleaned_data, "standardized_KIM1_NGAL.csv", row.names=FALSE)
+write.csv(cleaned_data, "standardized_biomarker_data.csv", row.names=FALSE)
 ```

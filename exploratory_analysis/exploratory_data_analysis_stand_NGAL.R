@@ -36,7 +36,7 @@ creatinine_data_aki_no <- creatinine_data %>%
   select(PID, AKI_delta)
 
 # read the mediation data
-mediation_data <- read.csv("standardized_KIM1_NGAL.csv")
+mediation_data <- read.csv("standardized_biomarker_data.csv")
 
 # subset to patients that experienced AKI and look only at
 # change in NGAL and NGAL
